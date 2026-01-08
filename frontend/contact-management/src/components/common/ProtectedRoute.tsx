@@ -18,8 +18,17 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/login" />;
   }
 
+  // User is authenticated
+  const isAdmin = user?.role === 'admin';
+  
+  // If user is admin and trying to access non-admin route (like dashboard)
+  // Redirect them to admin contacts page
+  if (isAdmin && !requireAdmin) {
+    return <Navigate to="/admin/contacts" />;
+  }
+
   // If admin role required but user is not admin
-  if (requireAdmin && user?.role !== 'admin') {
+  if (requireAdmin && !isAdmin) {
     return <Navigate to="/dashboard" />;
   }
 
