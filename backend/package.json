@@ -19,6 +19,7 @@
     "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.16.0",
     "sequelize": "^6.37.7",
+    "sqlite3": "^5.1.7",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   },

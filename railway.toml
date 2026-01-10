@@ -1,0 +1,16 @@
+﻿[build]
+builder = "nixpacks"
+buildCommand = "cd backend && npm install && npm run build"
+
+[deploy]
+startCommand = "cd backend && npm start"
+numReplicas = 1
+
+[[services]]
+name = "contact-form-backend"
+rootDirectory = "backend"
+port = 5000
+healthcheckPath = "/api/health"
+
+[variables]
+NODE_VERSION = "20"
