@@ -6,6 +6,7 @@ const initialState: ContactState = {
   contacts: [],
   selectedContact: null,
   loading: false,
+  pageLoading: false,
   error: null,
   total: 0,
   totalPages: 1,
@@ -88,6 +89,22 @@ const contactSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
+    // 🌟 SMOOTH PAGINATION REDUCERS
+    startPageLoading: (state) => {
+      state.pageLoading = true;
+    },
+    stopPageLoading: (state) => {
+      state.pageLoading = false;
+    },
+    resetContacts: (state) => {
+      state.contacts = [];
+      state.pageLoading = false;
+      state.loading = false;
+    },
+    // 🌟 For immediate page change without loading
+    changePageInstant: (state, action: PayloadAction<number>) => {
+      state.currentPage = action.payload;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -98,6 +115,7 @@ const contactSlice = createSlice({
       })
       .addCase(fetchUserContacts.fulfilled, (state, action: PayloadAction<any>) => {
         state.loading = false;
+        state.pageLoading = false;
         state.contacts = action.payload.contacts;
         state.total = action.payload.total;
         state.totalPages = action.payload.totalPages;
@@ -105,15 +123,20 @@ const contactSlice = createSlice({
       })
       .addCase(fetchUserContacts.rejected, (state, action) => {
         state.loading = false;
+        state.pageLoading = false;
         state.error = action.payload as string;
       })
-      // Fetch All Contacts (Admin)
+      // Fetch All Contacts (Admin) - SMOOTH VERSION
       .addCase(fetchAllContacts.pending, (state) => {
-        state.loading = true;
+        // Don't set loading immediately for smooth transitions
+        if (!state.pageLoading) {
+          state.loading = true;
+        }
         state.error = null;
       })
       .addCase(fetchAllContacts.fulfilled, (state, action: PayloadAction<any>) => {
         state.loading = false;
+        state.pageLoading = false;
         state.contacts = action.payload.contacts;
         state.total = action.payload.total;
         state.totalPages = action.payload.totalPages;
@@ -121,28 +144,70 @@ const contactSlice = createSlice({
       })
       .addCase(fetchAllContacts.rejected, (state, action) => {
         state.loading = false;
+        state.pageLoading = false;
         state.error = action.payload as string;
       })
       // Create Contact
+      .addCase(createContact.pending, (state) => {
+        state.loading = true;
+      })
       .addCase(createContact.fulfilled, (state, action: PayloadAction<any>) => {
+        state.loading = false;
         state.contacts.unshift(action.payload.contact);
         state.total += 1;
+        // Recalculate total pages
+        state.totalPages = Math.ceil(state.total / 15);
+      })
+      .addCase(createContact.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
       })
       // Update Contact
+      .addCase(updateContact.pending, (state) => {
+        state.loading = true;
+      })
       .addCase(updateContact.fulfilled, (state, action: PayloadAction<any>) => {
+        state.loading = false;
         const index = state.contacts.findIndex(c => c.id === action.payload.contact.id);
         if (index !== -1) {
           state.contacts[index] = action.payload.contact;
         }
         state.selectedContact = null;
       })
+      .addCase(updateContact.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
       // Delete Contact
+      .addCase(deleteContact.pending, (state) => {
+        state.loading = true;
+      })
       .addCase(deleteContact.fulfilled, (state, action: PayloadAction<any>) => {
+        state.loading = false;
         state.contacts = state.contacts.filter(contact => contact.id !== action.payload.id);
         state.total -= 1;
+        // Recalculate total pages
+        state.totalPages = Math.ceil(state.total / 15);
+        // If current page is empty and not first page, go to previous page
+        if (state.contacts.length === 0 && state.currentPage > 1) {
+          state.currentPage -= 1;
+        }
+      })
+      .addCase(deleteContact.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
       });
   },
 });
 
-export const { clearSelectedContact, setSelectedContact, clearError } = contactSlice.actions;
+export const { 
+  clearSelectedContact, 
+  setSelectedContact, 
+  clearError,
+  startPageLoading,
+  stopPageLoading,
+  resetContacts,
+  changePageInstant,
+} = contactSlice.actions;
+
 export default contactSlice.reducer;
