@@ -1,6 +1,3 @@
-
-
-
 import { Request, Response } from "express";
 import { createAdminService, loginService, registerService } from "../services/authService";
 import jwt from "jsonwebtoken";

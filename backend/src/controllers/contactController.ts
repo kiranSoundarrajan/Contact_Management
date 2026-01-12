@@ -1,67 +1,71 @@
-
-
-
 import { Request, Response } from "express";
-import { 
-  createContactService, 
-  getContactsService, 
+import {
+  createContactService,
+  getContactsService,
   updateContactService,
   deleteContactService,
-  getContactByIdService 
+  getContactByIdService
 } from "../services/contactService";
 
-// 🔹 User can create contact
+// ===============================
+// 🔹 CREATE CONTACT (User)
+// ===============================
 export const createContact = async (req: Request, res: Response) => {
   try {
-    console.log("🔍 Request user object:", (req as any).user); // Debug log
-    console.log("🔍 Request body:", req.body); // Debug log
-    
+    console.log("🔍 Request user object:", (req as any).user);
+    console.log("🔍 Request body:", req.body);
+
     const userId = (req as any).user?.userId;
-    
-    // Validate userId exists
+
     if (!userId) {
       return res.status(400).json({
         success: false,
         message: "User ID is missing. Please login again."
       });
     }
-    
-    // Prepare contact data
+
     const contactData = {
       name: req.body.name,
       email: req.body.email,
       place: req.body.place,
       dob: req.body.dob,
-      userId: userId // Ensure this is set
+      userId
     };
-    
-    console.log("📝 Creating contact with data:", contactData); // Debug log
-    
+
+    console.log("📝 Creating contact with data:", contactData);
+
     const contact = await createContactService(contactData);
-    
+
     res.status(201).json({
       success: true,
       message: "Contact created successfully",
       contact
     });
   } catch (error: any) {
-    console.error("❌ Create contact error:", error); // Detailed error log
-    res.status(500).json({ 
-      success: false, 
-      message: error.message || "Failed to create contact" 
+    console.error("❌ Create contact error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to create contact"
     });
   }
 };
 
-// 🔹 Admin can get all contacts with pagination
+// ===============================
+// 🔹 GET ALL CONTACTS (Admin)
+// ===============================
 export const getContacts = async (req: Request, res: Response) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 15;
-    const search = req.query.search as string;
-    
+    const page =
+      typeof req.query.page === "string" ? parseInt(req.query.page, 10) : 1;
+
+    const limit =
+      typeof req.query.limit === "string" ? parseInt(req.query.limit, 10) : 15;
+
+    const search =
+      typeof req.query.search === "string" ? req.query.search : "";
+
     const result = await getContactsService(page, limit, search);
-    
+
     res.json({
       success: true,
       total: result.total,
@@ -70,33 +74,40 @@ export const getContacts = async (req: Request, res: Response) => {
       contacts: result.contacts
     });
   } catch (error: any) {
-    res.status(500).json({ 
-      success: false, 
-      message: error.message || "Failed to fetch contacts" 
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch contacts"
     });
   }
 };
 
-// 🔹 User can get own contacts
+// ===============================
+// 🔹 GET USER CONTACTS (User)
+// ===============================
 export const getUserContacts = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user?.userId;
-    
+
     if (!userId) {
       return res.status(400).json({
         success: false,
         message: "User ID is missing"
       });
     }
-    
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 15;
-    
-    const result = await getContactsService(page, limit, '', userId);
-    
-    // Cache for 30 seconds (client-side)
-    res.set('Cache-Control', 'private, max-age=30');
-    
+
+    const page =
+      typeof req.query.page === "string" ? parseInt(req.query.page, 10) : 1;
+
+    const limit =
+      typeof req.query.limit === "string" ? parseInt(req.query.limit, 10) : 15;
+
+    const search =
+      typeof req.query.search === "string" ? req.query.search : "";
+
+    const result = await getContactsService(page, limit, search, userId);
+
+    res.set("Cache-Control", "private, max-age=30");
+
     res.json({
       success: true,
       total: result.total,
@@ -105,19 +116,22 @@ export const getUserContacts = async (req: Request, res: Response) => {
       contacts: result.contacts
     });
   } catch (error: any) {
-    res.status(500).json({ 
-      success: false, 
-      message: error.message || "Failed to fetch contacts" 
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch contacts"
     });
   }
 };
 
-// 🔹 Admin can update any contact
+// ===============================
+// 🔹 UPDATE CONTACT (Admin)
+// ===============================
 export const updateContact = async (req: Request, res: Response) => {
   try {
-    const contactId = parseInt(req.params.id, 10);
+    const contactId = Number(req.params.id);
+
     const updatedContact = await updateContactService(contactId, req.body);
-    
+
     res.json({
       success: true,
       message: "Contact updated successfully",
@@ -125,62 +139,71 @@ export const updateContact = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     if (error.message === "Contact not found") {
-      return res.status(404).json({ 
-        success: false, 
-        message: error.message 
+      return res.status(404).json({
+        success: false,
+        message: error.message
       });
     }
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to update contact" 
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to update contact"
     });
   }
 };
 
-// 🔹 Admin can delete contact
+// ===============================
+// 🔹 DELETE CONTACT (Admin)
+// ===============================
 export const deleteContact = async (req: Request, res: Response) => {
   try {
-    const contactId = parseInt(req.params.id, 10);
+    const contactId = Number(req.params.id);
+
     await deleteContactService(contactId);
-    
+
     res.json({
       success: true,
       message: "Contact deleted successfully"
     });
   } catch (error: any) {
     if (error.message === "Contact not found") {
-      return res.status(404).json({ 
-        success: false, 
-        message: error.message 
+      return res.status(404).json({
+        success: false,
+        message: error.message
       });
     }
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to delete contact" 
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete contact"
     });
   }
 };
 
-// 🔹 Get single contact by ID (Admin only)
+// ===============================
+// 🔹 GET CONTACT BY ID (Admin)
+// ===============================
 export const getContactById = async (req: Request, res: Response) => {
   try {
-    const contactId = parseInt(req.params.id, 10);
+    const contactId = Number(req.params.id);
+
     const contact = await getContactByIdService(contactId);
-    
+
     res.json({
       success: true,
       contact
     });
   } catch (error: any) {
     if (error.message === "Contact not found") {
-      return res.status(404).json({ 
-        success: false, 
-        message: error.message 
-      }); 
+      return res.status(404).json({
+        success: false,
+        message: error.message
+      });
     }
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to fetch contact" 
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch contact"
     });
   }
 };
