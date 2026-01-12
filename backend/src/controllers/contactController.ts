@@ -4,7 +4,8 @@ import {
   getContactsService,
   updateContactService,
   deleteContactService,
-  getContactByIdService
+  getContactByIdService,
+  validateDOB
 } from "../services/contactService";
 
 // ===============================
@@ -22,6 +23,17 @@ export const createContact = async (req: Request, res: Response) => {
         success: false,
         message: "User ID is missing. Please login again."
       });
+    }
+
+    // DOB validation check
+    if (req.body.dob) {
+      const dobValidation = validateDOB(req.body.dob);
+      if (!dobValidation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: dobValidation.error
+        });
+      }
     }
 
     const contactData = {
@@ -43,6 +55,15 @@ export const createContact = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error("❌ Create contact error:", error);
+    
+    // Check for DOB validation error
+    if (error.message.includes("Date of birth") || error.message.includes("future")) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: error.message || "Failed to create contact"
@@ -130,6 +151,17 @@ export const updateContact = async (req: Request, res: Response) => {
   try {
     const contactId = Number(req.params.id);
 
+    // DOB validation check for update
+    if (req.body.dob) {
+      const dobValidation = validateDOB(req.body.dob);
+      if (!dobValidation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: dobValidation.error
+        });
+      }
+    }
+
     const updatedContact = await updateContactService(contactId, req.body);
 
     res.json({
@@ -140,6 +172,14 @@ export const updateContact = async (req: Request, res: Response) => {
   } catch (error: any) {
     if (error.message === "Contact not found") {
       return res.status(404).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    // Check for DOB validation error
+    if (error.message.includes("Date of birth") || error.message.includes("future")) {
+      return res.status(400).json({
         success: false,
         message: error.message
       });
@@ -207,4 +247,3 @@ export const getContactById = async (req: Request, res: Response) => {
     });
   }
 };
- 

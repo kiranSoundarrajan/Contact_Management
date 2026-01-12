@@ -36,11 +36,21 @@ const ContactForm: React.FC<ContactFormProps> = ({
   });
 
   const handleFormSubmit = (data: ContactFormData) => {
+    // Extra safety check (optional)
+    const today = new Date().toISOString().split('T')[0];
+    if (data.dob > today) {
+      alert('Date of birth cannot be in the future');
+      return;
+    }
+    
     onSubmit(data);
     if (!initialData) {
       reset();
     }
   };
+
+  // Get today's date in YYYY-MM-DD format for max attribute
+  const today = new Date().toISOString().split('T')[0];
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
@@ -87,6 +97,7 @@ const ContactForm: React.FC<ContactFormProps> = ({
             {...register('dob')}
             error={errors.dob?.message}
             required
+            max={today}
           />
         </div>
       </div>

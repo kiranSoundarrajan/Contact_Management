@@ -11,7 +11,7 @@ const PublicRoute: React.FC<PublicRouteProps> = ({ children }) => {
 
   // If user is authenticated, redirect to dashboard
   // Otherwise, show the public page (login/register)
-  return isAuthenticated ? <Navigate to="/dashboard" /> : <>{children}</>;
+  return isAuthenticated ? <Navigate to="/dashboard" /> :  <>{children}</>;
 };
 
 export default PublicRoute;

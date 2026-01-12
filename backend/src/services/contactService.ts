@@ -4,6 +4,47 @@ import { ContactInstance } from "../types/sequelize";
 
 const contactCache = new Map<number, ContactInstance>();
 
+// ===============================
+// 🔹 DOB VALIDATION FUNCTION
+// ===============================
+export const validateDOB = (dobString: string) => {
+  try {
+    if (!dobString) {
+      return { isValid: true }; // Empty DOB is handled by schema
+    }
+
+    const dob = new Date(dobString);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Check if date is valid
+    if (isNaN(dob.getTime())) {
+      return {
+        isValid: false,
+        error: "Invalid date format"
+      };
+    }
+
+    // Check if date is in future
+    if (dob > today) {
+      return {
+        isValid: false,
+        error: "Date of birth cannot be in the future"
+      };
+    }
+
+    return { isValid: true };
+  } catch (error) {
+    return {
+      isValid: false,
+      error: "Invalid date format"
+    };
+  }
+};
+
+// ===============================
+// 🔹 CREATE CONTACT SERVICE
+// ===============================
 export const createContactService = async (data: any): Promise<ContactInstance> => {
   try {
     console.log("🛠️ Service creating contact with data:", data);
@@ -21,6 +62,12 @@ export const createContactService = async (data: any): Promise<ContactInstance> 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(data.email)) {
       throw new Error("Invalid email format");
+    }
+    
+    // Validate date of birth (not in future)
+    const dobValidation = validateDOB(data.dob);
+    if (!dobValidation.isValid) {
+      throw new Error(dobValidation.error || "Invalid date of birth");
     }
     
     const contact = await Contact.create(data) as ContactInstance;
@@ -61,6 +108,14 @@ export const updateContactService = async (contactId: number, data: any): Promis
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(data.email)) {
         throw new Error("Invalid email format");
+      }
+    }
+    
+    // Validate date of birth if being updated (not in future)
+    if (data.dob) {
+      const dobValidation = validateDOB(data.dob);
+      if (!dobValidation.isValid) {
+        throw new Error(dobValidation.error || "Invalid date of birth");
       }
     }
     

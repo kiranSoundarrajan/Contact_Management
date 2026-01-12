@@ -7,20 +7,25 @@ interface ProtectedRouteProps {
   requireAdmin?: boolean;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
-  children, 
-  requireAdmin = false 
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+  children,
+  requireAdmin = false,
 }) => {
   const { isAuthenticated, user } = useAppSelector((state) => state.auth);
 
-  // If not authenticated, redirect to login
+  // ❌ Not logged in → login page
   if (!isAuthenticated) {
-    return <Navigate to="/login" />;
+    return <Navigate to="/login" replace />;
   }
 
-  // If admin role required but user is not admin
+  // ❌ Admin trying to access USER pages like /dashboard
+  if (!requireAdmin && user?.role === 'admin') {
+    return <Navigate to="/admin/contacts" replace />;
+  }
+
+  // ❌ Non-admin trying to access ADMIN pages
   if (requireAdmin && user?.role !== 'admin') {
-    return <Navigate to="/dashboard" />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <>{children}</>;
