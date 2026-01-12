@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -15,7 +15,6 @@
     "axios": "^1.13.2",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
-    "lucide-react": "^0.562.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.70.0",
@@ -43,5 +42,3 @@
     "vite": "^7.2.4"
   }
 }
-
-

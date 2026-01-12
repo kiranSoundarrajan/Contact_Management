@@ -4,6 +4,9 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  css: {
+    postcss: path.resolve(__dirname, 'postcss.config.js')
+  },
   server: {
     port: 3000,
     open: true,

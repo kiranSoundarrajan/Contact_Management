@@ -31,15 +31,6 @@ const AdminContactsPage: React.FC = () => {
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [page, setPage] = useState(1);
 
-  // Disable body scroll when component mounts
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    
-    return () => {
-      document.body.style.overflow = 'auto';
-    };
-  }, []);
-
   useEffect(() => {
     if (!user || user.role !== 'admin') {
       navigate('/dashboard');
@@ -101,10 +92,10 @@ const AdminContactsPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 overflow-hidden"> {/* Added overflow-hidden here */}
+    <div className="min-h-screen bg-gray-50">
       <Header user={user} onLogout={handleLogout} />
       
-      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 h-[calc(100vh-4rem)] overflow-hidden"> {/* Added height and overflow-hidden */}
+      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="md:flex md:items-center md:justify-between mb-8">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
@@ -129,7 +120,7 @@ const AdminContactsPage: React.FC = () => {
           </div>
         </div>
         
-        <div className="bg-white shadow rounded-lg overflow-hidden h-[calc(100%-8rem)]"> {/* Added fixed height */}
+        <div className="bg-white shadow rounded-lg overflow-hidden">
           {loading ? (
             <div className="flex justify-center py-8">
               <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -140,13 +131,11 @@ const AdminContactsPage: React.FC = () => {
             </div>
           ) : (
             <>
-              <div className="overflow-y-auto h-[calc(100%-4rem)]"> {/* Scroll only the table */}
-                <ContactTable
-                  contacts={contacts}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
-                />
-              </div>
+              <ContactTable
+                contacts={contacts}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
               
               {/* Pagination */}
               {totalPages > 1 && (
