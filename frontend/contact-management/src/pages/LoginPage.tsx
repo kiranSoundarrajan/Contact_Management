@@ -9,7 +9,7 @@ import { LoginCredentials } from '../types/auth.types';
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const { loading, error } = useAppSelector((state) => state.auth); // Removed isAuthenticated
+  const { loading, error } = useAppSelector((state) => state.auth);
 
   useEffect(() => {
     if (error) {
@@ -20,7 +20,7 @@ const LoginPage: React.FC = () => {
 
   const handleLogin = async (credentials: LoginCredentials) => {
     try {
-      await dispatch(login(credentials)).unwrap(); // Removed result variable
+      await dispatch(login(credentials)).unwrap();
       toast.success('Login successful!');
       navigate('/dashboard');
     } catch (err: any) {
@@ -29,9 +29,9 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="h-screen bg-gray-50 flex flex-col justify-center sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+        <h2 className="text-center text-3xl font-extrabold text-gray-900">
           Sign in to your account
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">

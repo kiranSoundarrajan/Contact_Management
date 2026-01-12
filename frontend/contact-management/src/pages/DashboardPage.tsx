@@ -16,7 +16,7 @@ const DashboardPage: React.FC = () => {
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((state) => state.auth);
   const { contacts, loading, total } = useAppSelector((state) => state.contacts);
-  
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -25,7 +25,6 @@ const DashboardPage: React.FC = () => {
       navigate('/login');
       return;
     }
-    
     dispatch(fetchUserContacts({ page: currentPage }));
   }, [dispatch, navigate, user, currentPage]);
 
@@ -34,7 +33,7 @@ const DashboardPage: React.FC = () => {
       await dispatch(logout()).unwrap();
       toast.success('Logged out successfully');
       navigate('/login');
-    } catch (error) {
+    } catch {
       toast.error('Logout failed');
     }
   };
@@ -44,55 +43,52 @@ const DashboardPage: React.FC = () => {
       await dispatch(createContact(data)).unwrap();
       setIsModalOpen(false);
       toast.success('Contact created successfully');
-      // Refresh contacts list
       dispatch(fetchUserContacts({ page: currentPage }));
     } catch (error: any) {
       toast.error(error.message || 'Failed to create contact');
     }
   };
 
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
-
   return (
-    <div className="min-h-screen bg-gray-50">
+    /* 🔥 NO PAGE SCROLL */
+    <div className="h-screen overflow-hidden bg-gray-50 flex flex-col">
       <Header user={user} onLogout={handleLogout} />
-      
-      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <div className="md:flex md:items-center md:justify-between mb-8">
+
+      {/* MAIN CONTENT */}
+      <main className="flex-1 overflow-hidden max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 flex flex-col">
+        
+        {/* TOP SECTION */}
+        <div className="flex items-center justify-between mb-6 shrink-0">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
               Welcome back, {user?.username}!
             </h1>
-            <p className="mt-2 text-sm text-gray-600">
+            <p className="mt-1 text-sm text-gray-600">
               You have {total} contact(s) in your list
             </p>
           </div>
-          
-          <div className="mt-4 md:mt-0">
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200"
-            >
-              <FaPlus className="w-4 h-4 mr-2" />
-              Add New Contact
-            </button>
-          </div>
+
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          >
+            <FaPlus className="w-4 h-4 mr-2" />
+            Add New Contact
+          </button>
         </div>
-        
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
+
+        {/* CARD */}
+        <div className="bg-white shadow rounded-lg flex-1 overflow-hidden flex flex-col">
+          <div className="p-6 flex-1 overflow-hidden flex flex-col">
+
             {loading ? (
-              <div className="flex justify-center items-center py-8">
+              <div className="flex-1 flex items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
               </div>
             ) : contacts.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-gray-400 mb-4">
-                  <FaAddressBook className="w-16 h-16 mx-auto" />
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
+              <div className="flex-1 flex flex-col items-center justify-center text-center">
+                <FaAddressBook className="w-16 h-16 text-gray-400 mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900">
                   No contacts yet
                 </h3>
                 <p className="text-gray-500 mb-6">
@@ -100,25 +96,29 @@ const DashboardPage: React.FC = () => {
                 </p>
                 <button
                   onClick={() => setIsModalOpen(true)}
-                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   <FaPlus className="w-4 h-4 mr-2" />
                   Add Contact
                 </button>
               </div>
             ) : (
-              <ContactList
-                contacts={contacts}
-                currentPage={currentPage}
-                totalPages={Math.ceil(total / 15)}
-                onPageChange={handlePageChange}
-              />
+              /* 🔥 ONLY LIST AREA HANDLES INTERNAL SCROLL */
+              <div className="flex-1 overflow-y-auto p-1">
+                <ContactList
+                  contacts={contacts}
+                  currentPage={currentPage}
+                  totalPages={Math.ceil(total / 15)}
+                  onPageChange={setCurrentPage}
+                />
+              </div>
             )}
+
           </div>
         </div>
       </main>
 
-      {/* Contact Modal */}
+      {/* MODAL */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
