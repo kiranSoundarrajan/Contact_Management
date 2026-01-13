@@ -2,11 +2,19 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/server.js",
   "scripts": {
-    "dev": "nodemon",
+    "dev": "ts-node-dev server.ts",
+    "dev:local": "NODE_ENV=development ts-node-dev server.ts",
+    "dev:railway": "NODE_ENV=production ts-node-dev server.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "start:dev": "npm run dev:local",
+    "start:prod": "npm run build && npm run start",
+    "test:local": "NODE_ENV=development ts-node test-connection.ts",
+    "test:railway": "NODE_ENV=production ts-node test-connection.ts",
+    "db:check": "NODE_ENV=development node checkTables.js",
+    "db:reset": "NODE_ENV=development ts-node resetDatabase.ts"
   },
   "keywords": [],
   "author": "",
@@ -14,21 +22,22 @@
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
-    "dotenv": "^17.2.3",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "mysql2": "^3.16.0",
-    "sequelize": "^6.37.7"
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.12.0",
+    "sequelize": "^6.37.5"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^25.0.3",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/node": "^20.12.12",
     "@types/sequelize": "^4.28.20",
-    "nodemon": "^3.1.11",
+    "nodemon": "^3.1.9",
+    "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.4.5"
   }
 }

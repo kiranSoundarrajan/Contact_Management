@@ -9,6 +9,8 @@ interface ContactAttributes {
   place: string;
   dob: string;
   userId: number;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 class Contact extends Model<ContactAttributes> implements ContactAttributes {
@@ -49,10 +51,16 @@ Contact.init(
     userId: { 
       type: DataTypes.INTEGER, 
       allowNull: false,
-      references: {
-        model: User,
-        key: 'id'
-      }
+    },
+    createdAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
     },
   },
   { 

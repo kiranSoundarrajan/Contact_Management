@@ -94,13 +94,22 @@ import express from "express";
 import dotenv from "dotenv";
 import bcrypt from "bcryptjs";
 import cors from "cors";
+import path from "path";
 
 import sequelize from "./config/db";
 import User from "./models/User";
 import authRoutes from "./routes/authRoutes";
 import contactRoutes from "./routes/contactRoutes";
 
-dotenv.config();
+// Determine which .env file to load
+const envFile = process.env.NODE_ENV === 'production' 
+  ? '.env.production' 
+  : '.env.development';
+
+dotenv.config({ path: envFile });
+
+console.log(`🚀 Starting server in ${process.env.NODE_ENV} mode`);
+console.log(`📁 Using config: ${envFile}`);
 
 const app = express();
 
@@ -118,6 +127,7 @@ app.use(
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
+        console.warn(`⚠️ CORS blocked origin: ${origin}`);
         callback(new Error("Not allowed by CORS"));
       }
     },
@@ -164,7 +174,7 @@ const createAdminIfNotExists = async () => {
       console.log("✅ Admin user created:");
       console.log(`   ID: ${adminUser.id}`);
       console.log(`   Email: ${adminEmail}`);
-      console.log(`   Password: ${adminPassword}`);
+      console.log(`   Role: admin`);
     } else {
       console.log("✅ Admin user already exists");
       console.log(`   ID: ${adminExists.id}`);
@@ -173,16 +183,28 @@ const createAdminIfNotExists = async () => {
     }
   } catch (error: any) {
     console.error("❌ Error creating admin user:", error.message);
+  }
+};
+
+/* -------------------- Database Sync -------------------- */
+const syncDatabase = async () => {
+  try {
+    console.log("🔄 Syncing database...");
     
-    // Check if it's a unique constraint error (user already exists)
-    if (error.name === 'SequelizeUniqueConstraintError') {
-      console.log("⚠️ Admin user likely already exists with this email");
-    }
+    // Force sync only in development
+    const syncOptions = process.env.NODE_ENV === 'development' 
+      ? { alter: true } 
+      : {};
     
-    // Log the full error in development
-    if (process.env.NODE_ENV === 'development') {
-      console.error("Full error:", error);
-    }
+    await sequelize.sync(syncOptions);
+    console.log("✅ Database synced successfully");
+    
+    // Create admin after sync
+    await createAdminIfNotExists();
+    
+  } catch (error: any) {
+    console.error("❌ Database sync failed:", error.message);
+    throw error;
   }
 };
 
@@ -191,7 +213,20 @@ app.get("/health", (req, res) => {
   res.json({
     status: "OK",
     timestamp: new Date().toISOString(),
-    service: "Contact Management API"
+    service: "Contact Management API",
+    environment: process.env.NODE_ENV,
+    database: process.env.DB_NAME
+  });
+});
+
+/* -------------------- Database Info Endpoint -------------------- */
+app.get("/api/db-info", (req, res) => {
+  res.json({
+    environment: process.env.NODE_ENV,
+    dbHost: process.env.DB_HOST,
+    dbName: process.env.DB_NAME,
+    dbPort: process.env.DB_PORT,
+    dbUser: process.env.DB_USER
   });
 });
 
@@ -200,22 +235,20 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
-    // Connect DB
+    // Test database connection
     await sequelize.authenticate();
-    console.log("✅ Database connected");
+    console.log(`✅ Database connection established to ${process.env.DB_NAME}`);
 
-    // Sync tables with alter option to update schema
-    console.log("🔄 Syncing database tables...");
-    await sequelize.sync({ alter: true }); // Use { force: true } only in development to reset
-    console.log("✅ Database synced");
+    // Sync database
+    await syncDatabase();
 
-    // Always create admin (dev + prod)
-    await createAdminIfNotExists();
-
+    // Start server
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
+      console.log(`📊 Database: ${process.env.DB_NAME} @ ${process.env.DB_HOST}`);
       console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+      console.log(`🔗 DB Info: http://localhost:${PORT}/api/db-info`);
     });
   } catch (error) {
     console.error("❌ Server failed to start:", error);
