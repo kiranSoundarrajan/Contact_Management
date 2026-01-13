@@ -3,7 +3,7 @@ import sequelize from "../config/db";
 import User from "./User";
 
 interface ContactAttributes {
-  id?: number;
+  id: number;
   name: string;
   email: string;
   place: string;
@@ -11,46 +11,68 @@ interface ContactAttributes {
   userId: number;
 }
 
-// 🔹 FIX: Remove property declarations
-class Contact extends Model<ContactAttributes> {}
+class Contact extends Model<ContactAttributes> implements ContactAttributes {
+  public id!: number;
+  public name!: string;
+  public email!: string;
+  public place!: string;
+  public dob!: string;
+  public userId!: number;
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
+}
 
 Contact.init(
   {
     id: { 
-      type: DataTypes.INTEGER.UNSIGNED, 
-      autoIncrement: true, 
-      primaryKey: true 
+      type: DataTypes.INTEGER, 
+      primaryKey: true,
+      autoIncrement: true,
+      allowNull: false,
     },
     name: { 
-      type: DataTypes.STRING, 
-      allowNull: false 
+      type: DataTypes.STRING(255), 
+      allowNull: false,
     },
     email: { 
-      type: DataTypes.STRING, 
-      allowNull: false 
+      type: DataTypes.STRING(255), 
+      allowNull: false,
     },
     place: { 
-      type: DataTypes.STRING, 
-      allowNull: false 
+      type: DataTypes.STRING(255), 
+      allowNull: false,
     },
     dob: { 
-      type: DataTypes.STRING, 
-      allowNull: false 
+      type: DataTypes.STRING(255), 
+      allowNull: false,
     },
     userId: { 
-      type: DataTypes.INTEGER.UNSIGNED, 
-      allowNull: false 
+      type: DataTypes.INTEGER, 
+      allowNull: false,
+      references: {
+        model: User,
+        key: 'id'
+      }
     },
   },
   { 
     sequelize, 
     tableName: "Contacts", 
-    timestamps: true 
+    timestamps: true,
+    modelName: "Contact",
   }
 );
 
 // Relations
-User.hasMany(Contact, { foreignKey: "userId" });
-Contact.belongsTo(User, { foreignKey: "userId" });
+User.hasMany(Contact, { 
+  foreignKey: "userId", 
+  as: "contacts",
+  onDelete: "CASCADE" 
+});
+
+Contact.belongsTo(User, { 
+  foreignKey: "userId", 
+  as: "user"
+});
 
 export default Contact;

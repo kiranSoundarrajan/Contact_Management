@@ -136,54 +136,102 @@ app.use("/api/contacts", contactRoutes);
 
 /* -------------------- Admin Seed -------------------- */
 const createAdminIfNotExists = async () => {
-  const adminEmail = process.env.ADMIN_EMAIL;
-  const adminPassword = process.env.ADMIN_PASSWORD;
+  try {
+    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminPassword = process.env.ADMIN_PASSWORD;
 
-  if (!adminEmail || !adminPassword) {
-    console.warn("⚠️ Admin credentials not set in ENV");
-    return;
-  }
+    if (!adminEmail || !adminPassword) {
+      console.warn("⚠️ Admin credentials not set in .env");
+      return;
+    }
 
-  const adminExists = await User.findOne({ where: { email: adminEmail } });
+    console.log(`🔍 Checking for admin user with email: ${adminEmail}`);
 
-  if (!adminExists) {
-    const hashedPassword = await bcrypt.hash(adminPassword, 10);
+    const adminExists = await User.findOne({ where: { email: adminEmail } });
 
-    await User.create({
-      username: "Admin",
-      email: adminEmail,
-      password: hashedPassword,
-      role: "admin"
-    });
+    if (!adminExists) {
+      console.log("🔄 Creating admin user...");
+      
+      const hashedPassword = await bcrypt.hash(adminPassword, 10);
 
-    console.log("✅ Admin user created");
-  } else {
-    console.log("✅ Admin user already exists");
+      const adminUser = await User.create({
+        username: "Admin",
+        email: adminEmail,
+        password: hashedPassword,
+        role: "admin"
+      });
+
+      console.log("✅ Admin user created:");
+      console.log(`   ID: ${adminUser.id}`);
+      console.log(`   Email: ${adminEmail}`);
+      console.log(`   Password: ${adminPassword}`);
+    } else {
+      console.log("✅ Admin user already exists");
+      console.log(`   ID: ${adminExists.id}`);
+      console.log(`   Email: ${adminExists.email}`);
+      console.log(`   Role: ${adminExists.role}`);
+    }
+  } catch (error: any) {
+    console.error("❌ Error creating admin user:", error.message);
+    
+    // Check if it's a unique constraint error (user already exists)
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      console.log("⚠️ Admin user likely already exists with this email");
+    }
+    
+    // Log the full error in development
+    if (process.env.NODE_ENV === 'development') {
+      console.error("Full error:", error);
+    }
   }
 };
+
+/* -------------------- Health Check -------------------- */
+app.get("/health", (req, res) => {
+  res.json({
+    status: "OK",
+    timestamp: new Date().toISOString(),
+    service: "Contact Management API"
+  });
+});
 
 /* -------------------- Server Start -------------------- */
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
+    // Connect DB
     await sequelize.authenticate();
     console.log("✅ Database connected");
 
-    // ⚠️ DEV / DEMO ONLY
-    await sequelize.sync({ alter: true });
+    // Sync tables with alter option to update schema
+    console.log("🔄 Syncing database tables...");
+    await sequelize.sync({ alter: true }); // Use { force: true } only in development to reset
     console.log("✅ Database synced");
 
-    if (process.env.NODE_ENV === "production") {
-      await createAdminIfNotExists();
-    }
+    // Always create admin (dev + prod)
+    await createAdminIfNotExists();
 
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🔗 Health check: http://localhost:${PORT}/health`);
     });
   } catch (error) {
     console.error("❌ Server failed to start:", error);
+    process.exit(1);
   }
 };
 
+// Handle uncaught errors
+process.on('uncaughtException', (error) => {
+  console.error('⚠️ Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('⚠️ Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 startServer();
+
+export default app;

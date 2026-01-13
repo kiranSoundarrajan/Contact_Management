@@ -1,5 +1,3 @@
-
-
 import { DataTypes, Model, Optional } from "sequelize";
 import sequelize from "../config/db";
 
@@ -15,8 +13,13 @@ interface UserAttributes {
 
 interface UserCreationAttributes extends Optional<UserAttributes, "id" | "role"> {}
 
-// 🔹 FIX: Remove public class field declarations, just use the Model
-class User extends Model<UserAttributes, UserCreationAttributes> {}
+class User extends Model<UserAttributes, UserCreationAttributes> {
+  declare id: number;
+  declare username: string;
+  declare email: string;
+  declare password: string;
+  declare role: string;
+}
 
 User.init(
   {
@@ -24,16 +27,22 @@ User.init(
       type: DataTypes.INTEGER.UNSIGNED,
       autoIncrement: true,
       primaryKey: true,
+      allowNull: false,
     },
     username: {
       type: DataTypes.STRING,
       allowNull: false,
-     
+      validate: {
+        notEmpty: true,
+      },
     },
     email: {
       type: DataTypes.STRING,
       allowNull: false,
-      
+      unique: true,
+      validate: {
+        isEmail: true,
+      },
     },
     password: {
       type: DataTypes.STRING,
@@ -43,12 +52,16 @@ User.init(
       type: DataTypes.STRING,
       allowNull: false,
       defaultValue: "user",
+      validate: {
+        isIn: [["user", "admin"]],
+      },
     },
   },
   {
     sequelize,
     tableName: "Users",
     timestamps: true,
+    modelName: "User",
   }
 );
 
