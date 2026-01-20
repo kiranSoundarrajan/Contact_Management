@@ -58,14 +58,7 @@ const LoginPage: React.FC = () => {
                 <span className="px-2 bg-white text-gray-500">Demo Credentials</span>
               </div>
             </div>
-            
-            <div className="mt-6 grid grid-cols-1 gap-3">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-sm font-medium text-gray-900 mb-1">Admin</p>
-                <p className="text-sm text-gray-600">kiransoundarrajan@gmail.com</p>
-                <p className="text-sm text-gray-600">Password: 1234567890</p>
-              </div>
-            </div>
+           
             
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">

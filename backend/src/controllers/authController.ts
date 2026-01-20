@@ -2,121 +2,100 @@ import { Request, Response } from "express";
 import { createAdminService, loginService, registerService } from "../services/authService";
 import jwt from "jsonwebtoken";
 import { blacklistToken } from "../middlewares/authMiddlewares";
-
-// Define user interface
-interface UserData {
-  id: number;
-  username: string;
-  email: string;
-  role: string;
-}
-
-const recentTokens = new Map<string, { userId: number, email: string, username: string }>();
+import User from "../models/User";
+import bcrypt from "bcryptjs";
 
 export const login = async (req: Request, res: Response) => {
   try {
+    console.log("\n🔍 LOGIN ATTEMPT ================");
+    console.log("🔍 Full request body:", JSON.stringify(req.body, null, 2));
+    
     const { email, password } = req.body;
 
     if (!email || !password) {
+      console.log("❌ Missing email or password");
       return res.status(400).json({ 
         success: false, 
         message: "Email and password are required" 
       });
     }
 
-    const user = await loginService(email, password) as UserData | null;
+    console.log("📧 Email:", email);
+    console.log("🔑 Password length:", password.length);
 
+    // Call the service
+    const user = await loginService(email, password);
+    
     if (!user) {
+      console.log("❌ Login service returned null");
       return res.status(401).json({ 
         success: false, 
-        message: "Invalid credentials" 
+        message: "Invalid email or password" 
       });
     }
 
-    if (!user.id) {
-      console.error("❌ User has no ID:", user);
-      return res.status(500).json({ 
-        success: false, 
-        message: "User data is invalid" 
-      });
-    }
+    console.log("✅ Login service successful, generating token");
 
-    // Check for recent token
-    let existingToken: string | undefined;
-    for (const [token, data] of recentTokens.entries()) {
-      if (data.userId === user.id) {
-        existingToken = token;
-        break;
-      }
-    }
-
-    let token: string;
-    if (existingToken) {
-      token = existingToken;
-    } else {
-      token = jwt.sign(
-        { 
-          userId: user.id, 
-          role: user.role 
-        },
-        process.env.JWT_SECRET as string,
-        { expiresIn: "1d" }
-      );
-      
-      // Store in cache
-      recentTokens.set(token, { 
+    // Generate token
+    const token = jwt.sign(
+      { 
         userId: user.id, 
         email: user.email,
-        username: user.username
-      });
+        role: user.role 
+      },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "1d" }
+    );
 
-      // Auto-cleanup
-      setTimeout(() => {
-        recentTokens.delete(token);
-      }, 24 * 60 * 60 * 1000);
-    }
+    console.log("✅ LOGIN SUCCESSFUL ================");
+    console.log("User:", user.email);
+    console.log("Role:", user.role);
 
     res.json({
       success: true,
       token,
       user: {
         id: user.id,
-        username: user.username, // ✅ Added username
+        username: user.username,
         email: user.email,
         role: user.role,
       },
     });
   } catch (error: any) {
-    if (error.message.includes("Too many login attempts")) {
-      return res.status(429).json({ 
-        success: false, 
-        message: error.message 
-      });
-    }
+    console.error("❌ LOGIN ERROR ================");
+    console.error("Error:", error.message);
+    console.error("Stack:", error.stack);
     
-    console.error("❌ Login error:", error);
     res.status(500).json({ 
       success: false, 
-      message: "Login failed" 
+      message: "Login failed",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
 
 export const register = async (req: Request, res: Response) => {
   try {
+    console.log("\n📝 REGISTER ATTEMPT ================");
+    console.log("Request body:", req.body);
+    
     const { username, email, password, role = "user" } = req.body;
 
-    // Basic validation
     if (!username || !email || !password) {
+      console.log("❌ Missing fields");
       return res.status(400).json({
         success: false,
         message: "All fields are required"
       });
     }
 
-    const user = await registerService({ username, email, password, role }) as UserData;
+    console.log("👤 Username:", username);
+    console.log("📧 Email:", email);
+    console.log("🔑 Password length:", password.length);
+    console.log("🎭 Role:", role);
 
-    // Generate token
+    const user = await registerService({ username, email, password, role });
+
     const token = jwt.sign(
       { 
         userId: user.id, 
@@ -126,12 +105,8 @@ export const register = async (req: Request, res: Response) => {
       { expiresIn: "1d" }
     );
 
-    // Store in cache
-    recentTokens.set(token, { 
-      userId: user.id, 
-      email: user.email,
-      username: user.username
-    });
+    console.log("✅ REGISTRATION SUCCESSFUL");
+    console.log("User created:", user.email);
 
     res.status(201).json({
       success: true,
@@ -145,7 +120,7 @@ export const register = async (req: Request, res: Response) => {
       }
     });
   } catch (error: any) {
-    console.error("❌ REGISTER CONTROLLER ERROR:", error.message);
+    console.error("❌ REGISTER ERROR:", error.message);
     res.status(400).json({
       success: false,
       message: error.message || "Registration failed",
@@ -155,9 +130,12 @@ export const register = async (req: Request, res: Response) => {
 
 export const createAdmin = async (req: Request, res: Response) => {
   try {
+    console.log("\n👑 CREATE ADMIN ATTEMPT");
+    
     const { secretKey } = req.body;
     
     if (!secretKey || secretKey !== process.env.ADMIN_SECRET_KEY) {
+      console.log("❌ Invalid secret key");
       return res.status(403).json({ 
         success: false, 
         message: "Unauthorized: Invalid secret key" 
@@ -166,11 +144,14 @@ export const createAdmin = async (req: Request, res: Response) => {
     
     const result = await createAdminService();
     
+    console.log("✅ Admin creation:", result.message);
+    
     res.json({
       success: true,
       ...result
     });
   } catch (error: any) {
+    console.error("❌ CREATE ADMIN ERROR:", error.message);
     res.status(500).json({
       success: false,
       message: error.message
@@ -183,8 +164,8 @@ export const logout = (req: Request, res: Response) => {
     const token = req.headers.authorization?.split(" ")[1];
     
     if (token) {
-      recentTokens.delete(token);
       blacklistToken(token);
+      console.log("🚪 Token blacklisted");
     }
     
     res.json({
@@ -192,6 +173,7 @@ export const logout = (req: Request, res: Response) => {
       message: "Logged out successfully"
     });
   } catch (error) {
+    console.error("❌ LOGOUT ERROR:", error);
     res.status(500).json({
       success: false,
       message: "Logout failed"
@@ -199,5 +181,116 @@ export const logout = (req: Request, res: Response) => {
   }
 };
 
+// NEW: Reset password endpoint for debugging
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    const { email, newPassword } = req.body;
+    
+    console.log("\n🔄 RESET PASSWORD REQUEST");
+    console.log("Email:", email);
+    console.log("New password:", newPassword);
+    
+    if (!email || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and new password are required"
+      });
+    }
+    
+    const user = await User.findOne({ where: { email } });
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+    
+    console.log("✅ User found:", user.email);
+    console.log("Old hash:", user.password.substring(0, 30) + "...");
+    
+    // Update password - will be hashed by the hook
+    await user.update({ password: newPassword });
+    
+    console.log("✅ Password updated");
+    console.log("New hash:", user.password.substring(0, 30) + "...");
+    
+    res.json({
+      success: true,
+      message: "Password reset successfully",
+      user: {
+        id: user.id,
+        email: user.email
+      }
+    });
+    
+  } catch (error: any) {
+    console.error("❌ RESET PASSWORD ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
 
+// NEW: Check user endpoint
+export const checkUser = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    
+    console.log("\n🔍 CHECK USER REQUEST");
+    console.log("Email:", email);
+    
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required"
+      });
+    }
+    
+    const user = await User.findOne({ where: { email } });
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+    
+    console.log("✅ User found:", user.email);
+    console.log("Username:", user.username);
+    console.log("Role:", user.role);
+    console.log("Password hash:", user.password);
+    console.log("Hash type:", user.password.substring(0, 7));
+    console.log("Hash length:", user.password.length);
+    
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        passwordHash: user.password,
+        hashType: user.password.substring(0, 7),
+        hashLength: user.password.length
+      }
+    });
+    
+  } catch (error: any) {
+    console.error("❌ CHECK USER ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
 
+export const testEndpoint = async (req: Request, res: Response) => {
+  console.log("✅ Test endpoint called");
+  res.json({
+    success: true,
+    message: "Auth routes are working",
+    timestamp: new Date().toISOString()
+  });
+};

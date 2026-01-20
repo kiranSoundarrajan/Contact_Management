@@ -1,72 +1,43 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { User } from '../../types/auth.types';
 import { FaUserCircle, FaSignOutAlt } from 'react-icons/fa';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { logout } from '../../store/slices/authSlice';
 
-interface HeaderProps {
-  user: User | null;
-  onLogout: () => void;
-}
+const Header: React.FC = () => {
+  const dispatch = useAppDispatch();
+  const { user } = useAppSelector((state) => state.auth);
 
-const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
-  const isAdmin = user?.role === 'admin';
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const isAdmin = user?.role === 'admin';
 
   const handleLogoutConfirm = () => {
-    onLogout();              // ✅ YES → logout
+    dispatch(logout());
     setShowLogoutModal(false);
-  };
-
-  const handleLogoutCancel = () => {
-    setShowLogoutModal(false); // ✅ NO → same page
   };
 
   return (
     <>
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* HEADER */}
+      <header className="bg-white shadow relative z-40">
+        <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between items-center h-16">
 
-            {/* Logo */}
-            <div className="flex items-center">
-              <Link
-                to={isAdmin ? '/admin/contacts' : '/dashboard'}
-                className="text-xl font-bold text-blue-600"
-              >
-                Contact Manager
-              </Link>
+            <Link
+              to={isAdmin ? '/admin/contacts' : '/dashboard'}
+              className="text-xl font-bold text-blue-600"
+            >
+              Contact Manager
+            </Link>
 
-              {/* Navigation */}
-              <nav className="hidden md:ml-10 md:flex md:space-x-8">
-                {!isAdmin && (
-                  <Link
-                    to="/dashboard"
-                    className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium"
-                  >
-                    Dashboard
-                  </Link>
-                )}
-
-                {isAdmin && (
-                  <Link
-                    to="/admin/contacts"
-                    className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium"
-                  >
-                    Admin Panel
-                  </Link>
-                )}
-              </nav>
-            </div>
-
-            {/* Right side */}
             <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                  <FaUserCircle className="w-6 h-6 text-blue-600" />
-                </div>
+              <div className="flex items-center space-x-2">
+                <FaUserCircle className="w-6 h-6 text-blue-600" />
                 <div className="hidden md:block">
                   <p className="text-sm font-medium text-gray-700">
-                    {user?.username}
+                    {user?.role === 'admin'
+                      ? user?.username.toUpperCase()
+                      : user?.username}
                   </p>
                   <p className="text-xs text-gray-500 capitalize">
                     {user?.role}
@@ -74,10 +45,11 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
                 </div>
               </div>
 
-              {/* Logout Button */}
+              {/* LOGOUT BUTTON */}
               <button
+                type="button"
                 onClick={() => setShowLogoutModal(true)}
-                className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 hover:text-red-600"
+                className="inline-flex items-center text-gray-700 hover:text-red-600"
               >
                 <FaSignOutAlt className="w-4 h-4" />
                 <span className="hidden md:inline ml-2">Logout</span>
@@ -88,11 +60,11 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
         </div>
       </header>
 
-      {/* ✅ Logout Confirmation Modal */}
+      {/* ✅ LOGOUT CONFIRMATION MODAL */}
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
           <div className="bg-white rounded-lg shadow-lg w-full max-w-sm p-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-3">
+            <h2 className="text-lg font-semibold mb-3">
               Confirm Logout
             </h2>
             <p className="text-sm text-gray-600 mb-6">
@@ -101,14 +73,16 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
 
             <div className="flex justify-end space-x-3">
               <button
-                onClick={handleLogoutCancel}
-                className="px-4 py-2 text-sm rounded-md bg-gray-200 hover:bg-gray-300"
+                type="button"
+                onClick={() => setShowLogoutModal(false)}
+                className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300"
               >
                 No
               </button>
               <button
+                type="button"
                 onClick={handleLogoutConfirm}
-                className="px-4 py-2 text-sm rounded-md bg-red-600 text-white hover:bg-red-700"
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
               >
                 Yes
               </button>

@@ -1,7 +1,6 @@
 import bcrypt from "bcryptjs";
 import User from "../models/User";
 
-// Define TypeScript interfaces
 interface UserData {
   id: number;
   username: string;
@@ -17,16 +16,6 @@ interface SafeUserData {
   role: string;
 }
 
-// 🔹 Rate limiting store
-const loginAttempts = new Map<string, { 
-  count: number, 
-  lastAttempt: number, 
-  lockUntil?: number 
-}>();
-
-// 🔹 Cache for frequently accessed users
-const userCache = new Map<string, SafeUserData>();
-
 export const registerService = async (data: any): Promise<SafeUserData> => {
   try {
     const { username, email, password, role = "user" } = data;
@@ -40,19 +29,16 @@ export const registerService = async (data: any): Promise<SafeUserData> => {
       throw new Error("User already exists with this email");
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-
+    // Don't hash here - let the model hook handle it
     const user = await User.create({
       username,
       email,
-      password: hashedPassword,
+      password: password, // Will be hashed by hook
       role: role.toLowerCase()
     });
 
-    // Get user as plain object
     const userPlain = user.get({ plain: true }) as UserData;
     
-    // Return without password
     return {
       id: userPlain.id,
       username: userPlain.username,
@@ -60,7 +46,7 @@ export const registerService = async (data: any): Promise<SafeUserData> => {
       role: userPlain.role
     };
   } catch (error: any) {
-    console.error("REGISTER SERVICE ERROR 👉", error.message);
+    console.error("REGISTER SERVICE ERROR:", error.message);
     throw error;
   }
 };
@@ -69,54 +55,39 @@ export const createAdminService = async () => {
   try {
     const adminEmail = "kiransoundarrajan@gmail.com";
     
-    if (userCache.has(adminEmail)) {
-      const cachedAdmin = userCache.get(adminEmail)!;
-      return { 
-        message: "Admin already exists (cached)",
-        admin: cachedAdmin
-      };
-    }
-
     const existingAdmin = await User.findOne({ where: { email: adminEmail } });
     
     if (existingAdmin) {
       const adminPlain = existingAdmin.get({ plain: true }) as UserData;
-      const adminData = {
-        id: adminPlain.id,
-        username: adminPlain.username,
-        email: adminPlain.email,
-        role: adminPlain.role
-      };
-      userCache.set(adminEmail, adminData);
-      
       return { 
         message: "Admin already exists",
-        admin: adminData
+        admin: {
+          id: adminPlain.id,
+          username: adminPlain.username,
+          email: adminPlain.email,
+          role: adminPlain.role
+        }
       };
     }
     
-    const hashedPassword = await bcrypt.hash("1234567890", 10);
-    
+    // Password will be hashed by the hook
     const admin = await User.create({
       username: "Nakkeeran S",
       email: adminEmail,
-      password: hashedPassword,
+      password: "1234567890", // Will be hashed by hook
       role: "admin"
     });
 
     const adminPlain = admin.get({ plain: true }) as UserData;
-    const adminData = {
-      id: adminPlain.id,
-      username: adminPlain.username,
-      email: adminPlain.email,
-      role: adminPlain.role
-    };
     
-    userCache.set(adminEmail, adminData);
-
     return { 
       message: "Admin created successfully",
-      admin: adminData
+      admin: {
+        id: adminPlain.id,
+        username: adminPlain.username,
+        email: adminPlain.email,
+        role: adminPlain.role
+      }
     };
   } catch (error: any) {
     throw new Error(`Failed to create admin: ${error.message}`);
@@ -124,93 +95,55 @@ export const createAdminService = async () => {
 };
 
 export const loginService = async (email: string, password: string): Promise<SafeUserData | null> => {
-  const now = Date.now();
-  const attempts = loginAttempts.get(email);
+  console.log(`\n🔍 LOGIN SERVICE START ================`);
+  console.log(`Email: ${email}`);
+  console.log(`Password: ${password ? "***" + password.substring(password.length - 2) : "undefined"}`);
   
-  if (attempts && attempts.lockUntil && now < attempts.lockUntil) {
-    const remainingMinutes = Math.ceil((attempts.lockUntil - now) / (1000 * 60));
-    throw new Error(`Too many login attempts. Try again in ${remainingMinutes} minutes`);
-  }
-  
-  if (attempts && attempts.lockUntil && now >= attempts.lockUntil) {
-    loginAttempts.delete(email);
-  }
-
-  // 🔹 O(1) cache check for user
-  if (userCache.has(email)) {
-    const cachedUser = userCache.get(email)!;
-    
-    // Get user with password from DB for verification
-    const user = await User.findOne({ where: { email } });
-    if (!user) return null;
-    
-    const userPlain = user.get({ plain: true }) as UserData;
-    const isMatch = await bcrypt.compare(password, userPlain.password);
-    
-    if (isMatch) {
-      loginAttempts.delete(email);
-      return cachedUser;
-    } else {
-      trackFailedAttempt(email, now);
-      return null;
-    }
-  }
-
   const user = await User.findOne({ where: { email } });
   
   if (!user) {
-    trackFailedAttempt(email, now);
+    console.log(`❌ User not found: ${email}`);
     return null;
   }
-
-  const userPlain = user.get({ plain: true }) as UserData;
-  const isMatch = await bcrypt.compare(password, userPlain.password);
+  
+  console.log(`✅ User found in DB:`);
+  console.log(`   ID: ${user.id}`);
+  console.log(`   Username: ${user.username}`);
+  console.log(`   Email: ${user.email}`);
+  console.log(`   Role: ${user.role}`);
+  console.log(`   Password hash: ${user.password.substring(0, 30)}...`);
+  
+  // Use the instance method
+  const isMatch = await user.checkPassword(password);
   
   if (!isMatch) {
-    trackFailedAttempt(email, now);
+    console.log(`❌ Password mismatch`);
+    
+    // Extra debugging
+    console.log(`🔍 Extra debug info:`);
+    console.log(`   Hash type check:`);
+    console.log(`     Starts with $2b$: ${user.password.startsWith('$2b$')}`);
+    console.log(`     Starts with $2a$: ${user.password.startsWith('$2a$')}`);
+    console.log(`     Starts with $2y$: ${user.password.startsWith('$2y$')}`);
+    
+    // Test hash creation
+    try {
+      const testHash = await bcrypt.hash(password, 10);
+      console.log(`   Test hash (same password): ${testHash.substring(0, 30)}...`);
+      console.log(`   Hashes equal: ${testHash === user.password}`);
+    } catch (error) {
+      console.log(`   Could not create test hash`);
+    }
+    
     return null;
   }
   
-  // Create safe user object without password
-  const safeUserData: SafeUserData = {
-    id: userPlain.id,
-    username: userPlain.username,
-    email: userPlain.email,
-    role: userPlain.role
+  console.log(`✅ Password verified successfully`);
+  
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    role: user.role
   };
-  
-  userCache.set(email, safeUserData);
-  loginAttempts.delete(email);
-  
-  return safeUserData;
-};
-
-const trackFailedAttempt = (email: string, timestamp: number) => {
-  const attempts = loginAttempts.get(email) || { 
-    count: 0, 
-    lastAttempt: timestamp 
-  };
-  
-  attempts.count += 1;
-  attempts.lastAttempt = timestamp;
-  
-  if (attempts.count >= 5) {
-    attempts.lockUntil = timestamp + (15 * 60 * 1000);
-  }
-  
-  loginAttempts.set(email, attempts);
-  
-  if (attempts.lockUntil) {
-    setTimeout(() => {
-      const current = loginAttempts.get(email);
-      if (current && current.lockUntil === attempts.lockUntil) {
-        loginAttempts.delete(email);
-      }
-    }, 15 * 60 * 1000);
-  }
-};
-
-export const clearAuthCaches = () => {
-  loginAttempts.clear();
-  userCache.clear();
 };

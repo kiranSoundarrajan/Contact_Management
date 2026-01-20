@@ -97,7 +97,7 @@ const ContactTable: React.FC<ContactTableProps> = ({
                         onClick={() => onDelete(contact)}
                         className="text-red-600 hover:text-red-800 flex items-center"
                       >
-                        <FaTrash className="mr-1" /> Delete
+                        <FaTrash className="mr-1" />
                       </button>
                     )}
                   </div>
