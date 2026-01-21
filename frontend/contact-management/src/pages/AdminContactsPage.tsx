@@ -4,10 +4,12 @@ import { toast } from 'react-hot-toast';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import {
   fetchAllContacts,
+  fetchUserContacts,
   updateContact,
   deleteContact,
   startPageLoading,
   stopPageLoading,
+  syncContactsFromCache
 } from '../store/slices/contactSlice';
 import Header from '../components/common/Header';
 import ContactTable from '../components/contacts/ContactTable';
@@ -16,7 +18,7 @@ import ContactForm from '../components/contacts/ContactForm';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { Contact, ContactFormData } from '../types/contact.types';
-import { FaSearch, FaChevronLeft, FaChevronRight, FaStepBackward, FaStepForward } from 'react-icons/fa';
+import { FaSearch, FaChevronLeft, FaChevronRight, FaStepBackward, FaStepForward, FaSync } from 'react-icons/fa';
 
 const AdminContactsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -29,6 +31,8 @@ const AdminContactsPage: React.FC = () => {
     pageLoading,
     total, 
     totalPages,
+    syncTimestamp,
+    currentPage  // Get currentPage from state
   } = useAppSelector((state) => state.contacts);
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -54,15 +58,42 @@ const AdminContactsPage: React.FC = () => {
       navigate('/dashboard');
       return;
     }
+    
     const loadContacts = async () => {
       try {
-        await dispatch(fetchAllContacts({ page, search: debouncedSearch }));
-      } catch (error) {
-        toast.error('Failed to load contacts');
+        // Use getAllContacts for admin
+        await dispatch(fetchAllContacts({ 
+          page, 
+          limit: 15, // Add limit explicitly
+          search: debouncedSearch,
+          forceRefresh: page === 1 // Force refresh on first page
+        }));
+      } catch (error: any) {
+        console.error('Admin API failed:', error);
+        
+        // Fallback to user contacts API if admin API fails
+        if (error.message?.includes('Access denied') || error.message?.includes('403')) {
+          toast.error('Admin API access issue. Loading user contacts instead...');
+          await dispatch(fetchUserContacts({ 
+            page, 
+            limit: 15,
+            search: debouncedSearch
+          }));
+        } else {
+          toast.error('Failed to load contacts');
+        }
       }
     };
+    
     loadContacts();
   }, [dispatch, navigate, user, debouncedSearch, page]);
+
+  // Sync page with redux currentPage
+  useEffect(() => {
+    if (currentPage && currentPage !== page) {
+      setPage(currentPage);
+    }
+  }, [currentPage]);
 
   /* ---------------- SMOOTH PAGE CHANGE HANDLER ---------------- */
   const handlePageChange = useCallback(async (newPage: number) => {
@@ -76,15 +107,35 @@ const AdminContactsPage: React.FC = () => {
     ) {
       return;
     }
+    
     setIsChangingPage(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     dispatch(startPageLoading());
+    
     await new Promise(resolve => setTimeout(resolve, 100));
     setPage(newPage);
+    
     try {
-      await dispatch(fetchAllContacts({ page: newPage, search: debouncedSearch }));
-    } catch (error) {
-      toast.error('Failed to load contacts');
+      await dispatch(fetchAllContacts({ 
+        page: newPage, 
+        limit: 15,
+        search: debouncedSearch,
+        forceRefresh: false
+      }));
+    } catch (error: any) {
+      console.error('Page change error:', error);
+      
+      // Fallback to user contacts API
+      if (error.message?.includes('Access denied') || error.message?.includes('403')) {
+        await dispatch(fetchUserContacts({ 
+          page: newPage, 
+          limit: 15,
+          search: debouncedSearch 
+        }));
+      } else {
+        toast.error('Failed to load contacts');
+      }
+      
       dispatch(stopPageLoading());
     } finally {
       setTimeout(() => {
@@ -97,6 +148,7 @@ const AdminContactsPage: React.FC = () => {
   const generatePageNumbers = () => {
     const pages = [];
     const maxVisible = 5;
+    
     if (totalPages <= maxVisible) {
       for (let i = 1; i <= totalPages; i++) {
         pages.push(i);
@@ -104,23 +156,37 @@ const AdminContactsPage: React.FC = () => {
     } else {
       let startPage = Math.max(1, page - 2);
       let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+      
       if (endPage - startPage + 1 < maxVisible) {
         startPage = Math.max(1, endPage - maxVisible + 1);
       }
+      
       if (startPage > 1) {
         pages.push(1);
         if (startPage > 2) pages.push('...');
       }
+      
       for (let i = startPage; i <= endPage; i++) {
         pages.push(i);
       }
+      
       if (endPage < totalPages) {
         if (endPage < totalPages - 1) pages.push('...');
         pages.push(totalPages);
       }
     }
+    
     return pages;
   };
+
+  const handleManualSync = useCallback(async () => {
+    try {
+      await dispatch(syncContactsFromCache());
+      toast.success('Contacts synced successfully!');
+    } catch (err: any) {
+      toast.error('Failed to sync contacts');
+    }
+  }, [dispatch]);
 
   const handleEdit = (contact: Contact) => {
     setSelectedContact(contact);
@@ -139,7 +205,14 @@ const AdminContactsPage: React.FC = () => {
       toast.success('Contact updated');
       setIsEditModalOpen(false);
       setSelectedContact(null);
-      await dispatch(fetchAllContacts({ page, search: debouncedSearch }));
+      
+      // Refresh contacts after update - stay on current page
+      await dispatch(fetchAllContacts({ 
+        page, 
+        limit: 15,
+        search: debouncedSearch,
+        forceRefresh: true 
+      }));
     } catch (err: any) {
       toast.error(err.message || 'Update failed');
     }
@@ -152,7 +225,14 @@ const AdminContactsPage: React.FC = () => {
       toast.success('Contact deleted');
       setIsDeleteModalOpen(false);
       setSelectedContact(null);
-      await dispatch(fetchAllContacts({ page, search: debouncedSearch }));
+      
+      // Refresh contacts after delete - stay on current page
+      await dispatch(fetchAllContacts({ 
+        page, 
+        limit: 15,
+        search: debouncedSearch,
+        forceRefresh: true 
+      }));
     } catch (err: any) {
       toast.error(err.message || 'Delete failed');
     }
@@ -165,11 +245,28 @@ const AdminContactsPage: React.FC = () => {
         {/* TOP BAR */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center my-6 gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+              <button
+                onClick={handleManualSync}
+                className="text-gray-500 hover:text-blue-600 transition-colors p-2"
+                title="Sync all contacts"
+                disabled={contactsLoading || pageLoading}
+              >
+                <FaSync className={`w-4 h-4 ${contactsLoading || pageLoading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
             <p className="text-sm text-gray-600 mt-1">
               Total Contacts: <span className="font-semibold text-gray-800">{total}</span>
               <span className="mx-2">•</span>
+              Page: <span className="font-semibold text-gray-800">{page} of {totalPages}</span>
+              <span className="mx-2">•</span>
               Showing <span className="font-semibold text-gray-800">{contacts.length}</span> contacts
+              {syncTimestamp && (
+                <span className="ml-2 text-xs text-gray-500">
+                  (Synced: {new Date(syncTimestamp).toLocaleTimeString()})
+                </span>
+              )}
             </p>
           </div>
           <div className="relative w-full sm:w-64">
@@ -220,7 +317,7 @@ const AdminContactsPage: React.FC = () => {
             </div>
           )}
 
-          {/* PAGINATION - RESTORED */}
+          {/* PAGINATION */}
           {totalPages > 1 && (
             <div className="border-t border-gray-200 bg-gray-50 px-4 sm:px-6 py-4">
               <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -236,7 +333,7 @@ const AdminContactsPage: React.FC = () => {
                   </span>
                 </div>
 
-                {/* PAGINATION CONTROLS - RESTORED */}
+                {/* PAGINATION CONTROLS */}
                 <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-2">
                   {/* FIRST PAGE */}
                   <button

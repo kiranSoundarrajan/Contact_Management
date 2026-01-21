@@ -33,6 +33,8 @@ export interface ContactsResponse {
 
 export interface ContactState {
   contacts: Contact[];
+  allContactsCache: Contact[];
+  userContactsCache: Contact[];
   selectedContact: Contact | null;
   loading: boolean;
   pageLoading: boolean;
@@ -40,4 +42,8 @@ export interface ContactState {
   total: number;
   totalPages: number;
   currentPage: number;
+  lastFetchedPage: number | null;
+  cacheTimestamp: number | null;
+  syncTimestamp: number | null;
+  isInitialized: boolean;
 }

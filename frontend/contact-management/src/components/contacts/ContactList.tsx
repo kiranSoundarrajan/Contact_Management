@@ -7,6 +7,7 @@ interface ContactListProps {
   contacts: Contact[];
   currentPage: number;
   totalPages: number;
+  total?: number; // Make this optional with ?
   onPageChange: (page: number) => void;
   onEdit?: (contact: Contact) => void;
   onDelete?: (contact: Contact) => void;
@@ -17,16 +18,19 @@ const ContactList: React.FC<ContactListProps> = ({
   contacts,
   currentPage,
   totalPages,
+  total = 0, // Provide default value
   onPageChange,
   onEdit,
   onDelete,
   isAdmin = false,
 }) => {
-  return (
-    /* 🔒 NO SCROLL HERE */
-    <div className="flex-1 flex flex-col overflow-hidden">
+  const itemsPerPage = 15;
+  const startIndex = total > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
+  const endIndex = total > 0 ? Math.min(currentPage * itemsPerPage, total) : 0;
 
-      {/* 🔥 SCROLLABLE CONTACT CARDS */}
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* SCROLLABLE CONTACT CARDS */}
       {contacts.length > 0 ? (
         <div className="flex-1 overflow-y-auto p-1">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -42,7 +46,7 @@ const ContactList: React.FC<ContactListProps> = ({
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center text-center">
+        <div className="flex-1 flex items-center justify-center text-center p-8">
           <div>
             <div className="text-gray-400 mb-4">
               <svg
@@ -71,23 +75,19 @@ const ContactList: React.FC<ContactListProps> = ({
         </div>
       )}
 
-      {/* 📌 FIXED PAGINATION */}
+      {/* FIXED PAGINATION */}
       {totalPages > 1 && (
         <div className="shrink-0 border-t border-gray-200 bg-white pt-4 mt-2">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4">
             <div className="text-sm text-gray-700">
               Showing{' '}
-              <span className="font-medium">
-                {(currentPage - 1) * 15 + 1}
-              </span>{' '}
+              <span className="font-medium">{startIndex}</span>{' '}
               to{' '}
-              <span className="font-medium">
-                {Math.min(currentPage * 15, totalPages * 15)}
-              </span>{' '}
-              of <span className="font-medium">{totalPages * 15}</span> results
+              <span className="font-medium">{endIndex}</span>{' '}
+              of <span className="font-medium">{total}</span> contacts
             </div>
 
-            <div className="flex space-x-2">
+            <div className="flex flex-wrap items-center justify-center gap-2">
               <Button
                 onClick={() => onPageChange(currentPage - 1)}
                 disabled={currentPage === 1}
@@ -107,7 +107,7 @@ const ContactList: React.FC<ContactListProps> = ({
                 .map((page, index, array) => (
                   <React.Fragment key={page}>
                     {index > 0 && array[index - 1] !== page - 1 && (
-                      <span className="px-2">...</span>
+                      <span className="px-2 text-gray-400">...</span>
                     )}
                     <Button
                       onClick={() => onPageChange(page)}

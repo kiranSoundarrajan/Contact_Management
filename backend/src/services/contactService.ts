@@ -20,15 +20,14 @@ interface PaginatedContacts {
 // 🔹 DOB VALIDATION FUNCTION
 // ===============================
 export const validateDOB = (dobString: string) => {
-  if (!dobString) return { isValid: true }; // Empty DOB handled by schema
-
+  if (!dobString) return { isValid: true };
   const dob = new Date(dobString);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-
+  
   if (isNaN(dob.getTime())) return { isValid: false, error: "Invalid date format" };
   if (dob > today) return { isValid: false, error: "Date of birth cannot be in the future" };
-
+  
   return { isValid: true };
 };
 
@@ -39,23 +38,19 @@ export const createContactService = async (
   data: ContactCreationAttributes
 ): Promise<ContactInstance> => {
   try {
-    // Required fields validation
     const { name, email, place, dob, userId } = data;
     if (!name || !email || !place || !dob) {
       throw new Error("Missing required fields: name, email, place, dob");
     }
     if (!userId) throw new Error("User ID is required to create a contact");
 
-    // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) throw new Error("Invalid email format");
 
-    // DOB validation & conversion
     const dobValidation = validateDOB(dob.toString());
     if (!dobValidation.isValid) throw new Error(dobValidation.error);
-    data.dob = new Date(dob); // ensure Date type
+    data.dob = new Date(dob);
 
-    // Create contact
     const contact = await Contact.create(data) as ContactInstance;
     contactCache.set(contact.id, contact);
 
@@ -98,13 +93,11 @@ export const updateContactService = async (
     const contact = await Contact.findByPk(contactId) as ContactInstance | null;
     if (!contact) throw new Error("Contact not found");
 
-    // Email validation if updated
     if (data.email) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(data.email)) throw new Error("Invalid email format");
     }
 
-    // DOB validation if updated
     if (data.dob) {
       const dobValidation = validateDOB(data.dob.toString());
       if (!dobValidation.isValid) throw new Error(dobValidation.error);
@@ -138,7 +131,7 @@ export const deleteContactService = async (contactId: number): Promise<boolean> 
 };
 
 // ===============================
-// 🔹 GET CONTACTS WITH SEARCH & PAGINATION
+// 🔹 GET CONTACTS WITH SEARCH & PAGINATION (FIXED)
 // ===============================
 export const getContactsService = async (
   page: number = 1,
@@ -147,25 +140,41 @@ export const getContactsService = async (
   userId?: number
 ): Promise<PaginatedContacts> => {
   try {
+    // 🛠️ FIX 1: Validate page number
+    page = Math.max(1, page);
+    limit = Math.max(1, limit);
+    
     const offset = (page - 1) * limit;
 
-    // ===============================
-    // 🔹 Type-safe whereCondition
-    // ===============================
+    console.log(`\n🔍 PAGINATION DEBUG ================`);
+    console.log(`Page: ${page}`);
+    console.log(`Limit: ${limit}`);
+    console.log(`Offset: ${offset}`);
+    console.log(`Search: "${search}"`);
+    console.log(`UserId: ${userId}`);
+    console.log(`====================================`);
+
+    // 🛠️ FIX 2: Proper where condition
     const whereCondition: WhereOptions<ContactAttributes> = {};
 
-    if (userId) whereCondition.userId = userId;
+    if (userId) {
+      whereCondition.userId = userId;
+    }
 
-    if (search) {
-      // TypeScript fix: cast as any because Op.or is a symbol
+    if (search && search.trim() !== '') {
+      const searchTerm = `%${search}%`;
       (whereCondition as any)[Op.or] = [
-        { name: { [Op.like]: `%${search}%` } },
-        { email: { [Op.like]: `%${search}%` } },
-        { place: { [Op.like]: `%${search}%` } }
+        { name: { [Op.like]: searchTerm } },
+        { email: { [Op.like]: searchTerm } },
+        { place: { [Op.like]: searchTerm } }
       ];
     }
 
-    const { count, rows } = await Contact.findAndCountAll({
+    console.log(`📊 WHERE CONDITION:`, JSON.stringify(whereCondition, null, 2));
+
+    // 🛠️ FIX 3: Separate count and find queries for better performance
+    const count = await Contact.count({ where: whereCondition });
+    const rows = await Contact.findAll({
       where: whereCondition,
       limit,
       offset,
@@ -173,17 +182,31 @@ export const getContactsService = async (
     });
 
     const contacts = rows as ContactInstance[];
+    
+    const totalPages = Math.ceil(count / limit);
+    
+    console.log(`\n📊 PAGINATION RESULTS ================`);
+    console.log(`Total records: ${count}`);
+    console.log(`Total pages: ${totalPages}`);
+    console.log(`Records returned: ${contacts.length}`);
+    console.log(`Showing page ${page} of ${totalPages}`);
+    console.log(`====================================\n`);
+
+    // Update cache
     contacts.forEach(contact => {
-      if (!contactCache.has(contact.id)) contactCache.set(contact.id, contact);
+      if (!contactCache.has(contact.id)) {
+        contactCache.set(contact.id, contact);
+      }
     });
 
     return {
       contacts,
       total: count,
-      totalPages: Math.ceil(count / limit)
+      totalPages: totalPages
     };
   } catch (error: any) {
     console.error("❌ Get contacts error:", error.message);
+    console.error("Error stack:", error.stack);
     throw error;
   }
 };
