@@ -8,17 +8,13 @@ import User from "./models/User";
 import authRoutes from "./routes/authRoutes";
 import contactRoutes from "./routes/contactRoutes";
 
-// Determine which .env file to load
-const envFile =
-  process.env.NODE_ENV === "production"
-    ? ".env.production"
-    : ".env.development";
 
-dotenv.config({ path: envFile });
+dotenv.config();
 
-console.log(`🚀 Starting server in ${process.env.NODE_ENV} mode`);
-console.log(`📁 Using config: ${envFile}`);
+console.log(`🚀 Starting server in ${process.env.NODE_ENV || "development"} mode`);
+console.log(`📊 Connecting DB: ${process.env.DB_NAME}`);
 
+/* -------------------- App Init -------------------- */
 const app: Application = express();
 
 /* -------------------- CORS -------------------- */
@@ -27,13 +23,14 @@ const allowedOrigins: string[] = [
   "http://127.0.0.1:3000",
   "http://localhost:5173",
   "https://contactmanagement14.netlify.app"
-].filter(Boolean) as string[];
+];
 
 const corsOptions: CorsOptions = {
   origin: (
     origin: string | undefined,
     callback: (err: Error | null, allow?: boolean) => void
   ) => {
+    // ✅ Postman / Server-to-server requests origin undefined இருக்கும்
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -59,11 +56,11 @@ app.use("/api/contacts", contactRoutes);
 const createAdminIfNotExists = async (): Promise<void> => {
   try {
     const adminName = process.env.ADMIN_NAME || "Admin";
-    const adminEmail = process.env.ADMIN_EMAIL;
-    const adminPassword = process.env.ADMIN_PASSWORD;
+    const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+    const adminPassword = process.env.ADMIN_PASSWORD?.trim();
 
     if (!adminEmail || !adminPassword) {
-      console.warn("⚠️ Admin credentials not set in .env");
+      console.warn("⚠️ Admin credentials not set in environment variables");
       return;
     }
 
@@ -76,14 +73,21 @@ const createAdminIfNotExists = async (): Promise<void> => {
 
       await User.create({
         username: adminName,
-        email: adminEmail.toLowerCase(),
+        email: adminEmail,
         password: hashedPassword,
         role: "admin"
       });
 
-      console.log("✅ Admin user created");
+      console.log("✅ Admin user created successfully");
     } else {
-      console.log("✅ Admin user already exists");
+      // ✅ Admin exists but role wrong na update pannidum
+      if (adminExists.role !== "admin") {
+        adminExists.role = "admin";
+        await adminExists.save();
+        console.log("✅ Admin user role updated to admin");
+      } else {
+        console.log("✅ Admin user already exists");
+      }
     }
   } catch (error) {
     console.error("❌ Error creating admin user:", error);
@@ -93,6 +97,7 @@ const createAdminIfNotExists = async (): Promise<void> => {
 /* -------------------- Database Sync -------------------- */
 const syncDatabase = async (): Promise<void> => {
   try {
+    // ✅ Production la alter false avoid (safe)
     const syncOptions =
       process.env.NODE_ENV === "development" ? { alter: false } : {};
 
