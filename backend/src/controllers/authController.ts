@@ -5,71 +5,133 @@ import { blacklistToken } from "../middlewares/authMiddlewares";
 import User from "../models/User";
 import bcrypt from "bcryptjs";
 
+// export const login = async (req: Request, res: Response) => {
+//   try {
+//     console.log("\n🔍 LOGIN ATTEMPT ================");
+//     console.log("🔍 Full request body:", JSON.stringify(req.body, null, 2));
+    
+//     const { email, password } = req.body;
+
+//     if (!email || !password) {
+//       console.log("❌ Missing email or password");
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: "Email and password are required" 
+//       });
+//     }
+
+//     console.log("📧 Email:", email);
+//     console.log("🔑 Password length:", password.length);
+
+//     // Call the service
+//     const user = await loginService(email, password);
+    
+//     if (!user) {
+//       console.log("❌ Login service returned null");
+//       return res.status(401).json({ 
+//         success: false, 
+//         message: "Invalid email or password" 
+//       });
+//     }
+
+//     console.log("✅ Login service successful, generating token");
+
+//     // Generate token
+//     const token = jwt.sign(
+//       { 
+//         userId: user.id, 
+//         email: user.email,
+//         role: user.role 
+//       },
+//       process.env.JWT_SECRET as string,
+//       { expiresIn: "1d" }
+//     );
+
+//     console.log("✅ LOGIN SUCCESSFUL ================");
+//     console.log("User:", user.email);
+//     console.log("Role:", user.role);
+
+//     res.json({
+//       success: true,
+//       token,
+//       user: {
+//         id: user.id,
+//         username: user.username,
+//         email: user.email,
+//         role: user.role,
+//       },
+//     });
+//   } catch (error: any) {
+//     console.error("❌ LOGIN ERROR ================");
+//     console.error("Error:", error.message);
+//     console.error("Stack:", error.stack);
+    
+//     res.status(500).json({ 
+//       success: false, 
+//       message: "Login failed",
+//       error: process.env.NODE_ENV === 'development' ? error.message : undefined
+//     });
+//   }
+// };
+
+
+// authController.ts-ல் login function-ஐ இப்படி மாற்றுங்க:
 export const login = async (req: Request, res: Response) => {
   try {
-    console.log("\n🔍 LOGIN ATTEMPT ================");
-    console.log("🔍 Full request body:", JSON.stringify(req.body, null, 2));
+    console.log("\n🔍 LOGIN ENDPOINT HIT ================");
+    console.log("Headers:", req.headers);
+    console.log("Content-Type:", req.headers['content-type']);
+    console.log("Body:", req.body);
+    console.log("Body type:", typeof req.body);
+    console.log("======================================");
     
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      console.log("❌ Missing email or password");
-      return res.status(400).json({ 
-        success: false, 
-        message: "Email and password are required" 
+    // Check if body exists
+    if (!req.body) {
+      console.log("❌ ERROR: req.body is undefined");
+      return res.status(400).json({
+        success: false,
+        message: "Request body is missing"
       });
     }
-
-    console.log("📧 Email:", email);
-    console.log("🔑 Password length:", password.length);
-
-    // Call the service
+    
+    const { email, password } = req.body;
+    
+    // Check if email and password exist
+    if (!email || !password) {
+      console.log("❌ Missing email or password");
+      console.log("Email:", email);
+      console.log("Password:", password ? "***" : "undefined");
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required"
+      });
+    }
+    
+    console.log("✅ Email and password received");
+    
+    // Rest of your login logic...
     const user = await loginService(email, password);
     
     if (!user) {
       console.log("❌ Login service returned null");
-      return res.status(401).json({ 
-        success: false, 
-        message: "Invalid email or password" 
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password"
       });
     }
-
-    console.log("✅ Login service successful, generating token");
-
-    // Generate token
-    const token = jwt.sign(
-      { 
-        userId: user.id, 
-        email: user.email,
-        role: user.role 
-      },
-      process.env.JWT_SECRET as string,
-      { expiresIn: "1d" }
-    );
-
-    console.log("✅ LOGIN SUCCESSFUL ================");
-    console.log("User:", user.email);
-    console.log("Role:", user.role);
-
-    res.json({
-      success: true,
-      token,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-      },
-    });
-  } catch (error: any) {
-    console.error("❌ LOGIN ERROR ================");
-    console.error("Error:", error.message);
-    console.error("Stack:", error.stack);
     
-    res.status(500).json({ 
-      success: false, 
+    // ... rest of your code
+    
+  } catch (error: any) {
+    console.error("❌ LOGIN ERROR DETAILS:");
+    console.error("Error name:", error.name);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+    
+    res.status(500).json({
+      success: false,
       message: "Login failed",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: error.message
     });
   }
 };
