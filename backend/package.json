@@ -2,11 +2,11 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
-  "main": "dist/server.js",
+  "main": "dist/server-fixed.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "dev": "ts-node-dev --respawn --transpile-only src/server-fixed.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node dist/server-fixed.js",
     "reset-db": "ts-node-dev --transpile-only src/reset-db.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
