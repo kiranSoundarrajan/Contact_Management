@@ -134,79 +134,18 @@ export const deleteContactService = async (contactId: number): Promise<boolean> 
 // 🔹 GET CONTACTS WITH SEARCH & PAGINATION (FIXED)
 // ===============================
 export const getContactsService = async (
-  page: number = 1,
-  limit: number = 15,
-  search: string = '',
+  page = 1,
+  limit = 15,
+  search = "",
   userId?: number
-): Promise<PaginatedContacts> => {
-  try {
-    // 🛠️ FIX 1: Validate page number
-    page = Math.max(1, page);
-    limit = Math.max(1, limit);
-    
-    const offset = (page - 1) * limit;
+) => {
+  const offset = (page - 1) * limit;
+  const where: any = {};
+  if (userId) where.userId = userId;
+  if (search) where[Op.or] = [{ name: { [Op.like]: `%${search}%` } }, { email: { [Op.like]: `%${search}%` } }];
 
-    console.log(`\n🔍 PAGINATION DEBUG ================`);
-    console.log(`Page: ${page}`);
-    console.log(`Limit: ${limit}`);
-    console.log(`Offset: ${offset}`);
-    console.log(`Search: "${search}"`);
-    console.log(`UserId: ${userId}`);
-    console.log(`====================================`);
+  const total = await Contact.count({ where });
+  const contacts = await Contact.findAll({ where, limit, offset, order: [["id", "DESC"]] });
 
-    // 🛠️ FIX 2: Proper where condition
-    const whereCondition: WhereOptions<ContactAttributes> = {};
-
-    if (userId) {
-      whereCondition.userId = userId;
-    }
-
-    if (search && search.trim() !== '') {
-      const searchTerm = `%${search}%`;
-      (whereCondition as any)[Op.or] = [
-        { name: { [Op.like]: searchTerm } },
-        { email: { [Op.like]: searchTerm } },
-        { place: { [Op.like]: searchTerm } }
-      ];
-    }
-
-    console.log(`📊 WHERE CONDITION:`, JSON.stringify(whereCondition, null, 2));
-
-    // 🛠️ FIX 3: Separate count and find queries for better performance
-    const count = await Contact.count({ where: whereCondition });
-    const rows = await Contact.findAll({
-      where: whereCondition,
-      limit,
-      offset,
-      order: [['id', 'DESC']]
-    });
-
-    const contacts = rows as ContactInstance[];
-    
-    const totalPages = Math.ceil(count / limit);
-    
-    console.log(`\n📊 PAGINATION RESULTS ================`);
-    console.log(`Total records: ${count}`);
-    console.log(`Total pages: ${totalPages}`);
-    console.log(`Records returned: ${contacts.length}`);
-    console.log(`Showing page ${page} of ${totalPages}`);
-    console.log(`====================================\n`);
-
-    // Update cache
-    contacts.forEach(contact => {
-      if (!contactCache.has(contact.id)) {
-        contactCache.set(contact.id, contact);
-      }
-    });
-
-    return {
-      contacts,
-      total: count,
-      totalPages: totalPages
-    };
-  } catch (error: any) {
-    console.error("❌ Get contacts error:", error.message);
-    console.error("Error stack:", error.stack);
-    throw error;
-  }
+  return { contacts, total, totalPages: Math.ceil(total / limit) };
 };
