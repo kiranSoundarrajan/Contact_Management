@@ -22,7 +22,7 @@ const allowedOrigins: string[] = [
   "http://localhost:3000",
   "http://127.0.0.1:3000",
   "http://localhost:5173",
-  "https://contact-management-00.netlify.app/"
+  process.env.FRONTEND_URL || "https://contact-management-1997.netlify.app/"
 ];
 
 const corsOptions: CorsOptions = {
