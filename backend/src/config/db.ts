@@ -1,8 +1,7 @@
 ﻿import { Sequelize } from "sequelize";
 import dotenv from "dotenv";
 
-const envFile = process.env.NODE_ENV === "production" ? ".env.production" : ".env.development";
-dotenv.config({ path: envFile });
+dotenv.config(); // ✅ Render environment variables will load here
 
 const sequelize = new Sequelize(
   process.env.DB_NAME as string,
@@ -18,13 +17,9 @@ const sequelize = new Sequelize(
   }
 );
 
-// Test connection
 sequelize
   .authenticate()
   .then(() => console.log(`✅ Connected to DB: ${process.env.DB_NAME}`))
-  .catch((err) => {
-    console.error(`❌ DB connection failed: ${err.message}`);
-    console.log("Check MySQL status, credentials, database existence, or empty password configuration.");
-  });
+  .catch((err) => console.error(`❌ DB connection failed: ${err.message}`));
 
 export default sequelize;
