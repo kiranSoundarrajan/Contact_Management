@@ -55,7 +55,7 @@ app.use((req: Request, res: Response, next) => {
 
 /* ==================== 2. CORS ==================== */
 app.use(cors({
-  origin: ["https://contact-management-kirans.netlify.app", "http://localhost:3000"],
+  origin: ["https://contact-management-23.netlify.app", "http://localhost:3000"],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
 }));
