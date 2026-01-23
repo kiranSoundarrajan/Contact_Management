@@ -14,7 +14,8 @@ export const registerService = async (data: any): Promise<SafeUserData> => {
     console.log("Data received:", { 
       username: data.username, 
       email: data.email, 
-      role: data.role 
+      role: data.role,
+      passwordLength: data.password.length
     });
 
     const { username, email, password, role = "user" } = data;
@@ -32,33 +33,35 @@ export const registerService = async (data: any): Promise<SafeUserData> => {
       throw new Error("Username must be at least 3 characters");
     }
 
-    // Check if user already exists (case-insensitive)
+    // Check if user already exists
     const existingUser = await User.findOne({ 
       where: { email: email.toLowerCase().trim() } 
     });
+    
     if (existingUser) {
       console.log(`❌ User already exists: ${email}`);
       throw new Error("User already exists with this email");
     }
 
     console.log(`✅ No duplicate found, creating user...`);
+    
+    // MANUALLY HASH THE PASSWORD - IMPORTANT!
+    const hashedPassword = await bcrypt.hash(password, 10);
+    console.log(`✅ Password hashed (${hashedPassword.substring(0, 30)}...)`);
 
-    // Create user - password will be hashed by model hook (10 rounds)
+    // Create user with already hashed password
     const user = await User.create({
       username: username.trim(),
       email: email.toLowerCase().trim(),
-      password: password, // ✅ Plain password - model hook will hash it
+      password: hashedPassword, // Already hashed
       role: role.toLowerCase()
     });
 
     console.log(`✅ User created in DB with ID: ${user.id}`);
-    console.log(`User details:`, {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      role: user.role,
-      passwordHash: user.password.substring(0, 20) + "..."
-    });
+    
+    // Immediately verify the hash works
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    console.log(`✅ Password verification: ${passwordMatch ? 'SUCCESS' : 'FAILED'}`);
 
     return {
       id: user.id,
@@ -68,8 +71,8 @@ export const registerService = async (data: any): Promise<SafeUserData> => {
     };
   } catch (error: any) {
     console.error("❌ REGISTER SERVICE ERROR:", error.message);
+    console.error("Full error:", error);
     
-    // Handle Sequelize unique constraint errors
     if (error.name === 'SequelizeUniqueConstraintError') {
       if (error.errors[0].path === 'username') {
         throw new Error("Username already taken");
@@ -82,7 +85,6 @@ export const registerService = async (data: any): Promise<SafeUserData> => {
     throw error;
   }
 };
-
 // Update your loginService in authService.ts
 export const loginService = async (email: string, password: string): Promise<SafeUserData | null> => {
   try {
@@ -182,6 +184,10 @@ export const createAdminService = async () => {
     console.log(`Admin email: ${adminEmail}`);
     console.log(`Admin password length: ${adminPassword.length}`);
     
+    // Manually hash the password
+    const hashedPassword = await bcrypt.hash(adminPassword, 10);
+    console.log(`✅ Admin password hashed: ${hashedPassword.substring(0, 30)}...`);
+    
     // Check if admin already exists
     const existingAdmin = await User.findOne({ 
       where: { email: adminEmail.toLowerCase() } 
@@ -190,9 +196,9 @@ export const createAdminService = async () => {
     if (existingAdmin) {
       console.log("✅ Admin already exists, updating...");
       
-      // Update admin password - model hook will hash it
+      // Update admin password with pre-hashed password
       await existingAdmin.update({ 
-        password: adminPassword, // ✅ Plain password - model hook will hash it
+        password: hashedPassword,
         role: "admin" 
       });
       
@@ -209,16 +215,20 @@ export const createAdminService = async () => {
       };
     }
     
-    // Create admin - password will be hashed by model hook
+    // Create admin with pre-hashed password
     const admin = await User.create({
       username: "Nakkeeran S",
       email: adminEmail,
-      password: adminPassword, // ✅ Plain password - model hook will hash it
+      password: hashedPassword, // ✅ Use pre-hashed password
       role: "admin"
     });
 
     console.log(`✅ Admin created with ID: ${admin.id}`);
-    console.log(`Admin password hash: ${admin.password.substring(0, 20)}...`);
+    console.log(`Admin password hash: ${admin.password.substring(0, 30)}...`);
+    
+    // Verify hash works
+    const verifyHash = await bcrypt.compare(adminPassword, admin.password);
+    console.log(`✅ Admin hash verification: ${verifyHash ? 'SUCCESS' : 'FAILED'}`);
     
     return { 
       message: "Admin created successfully",

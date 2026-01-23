@@ -401,7 +401,7 @@ export const testJsonParse = async (req: Request, res: Response) => {
   }
 };
 
-// Add to authController.ts
+
 export const debugAuthFlow = async (req: Request, res: Response) => {
   try {
     console.log("\n🔧 DEBUG AUTH FLOW ================");
@@ -476,5 +476,30 @@ export const debugAuthFlow = async (req: Request, res: Response) => {
       success: false,
       message: error.message
     });
+  }
+};
+
+export const checkPasswordHash = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ where: { email } });
+    
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    
+    res.json({
+      success: true,
+      user: {
+        email: user.email,
+        username: user.username,
+        passwordHash: user.password,
+        hashStartsWith: user.password.substring(0, 7),
+        hashLength: user.password.length,
+        isBcryptHash: user.password.startsWith('$2') // Bcrypt hashes start with $2
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };

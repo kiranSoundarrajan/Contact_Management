@@ -9,6 +9,7 @@ import {
   testEndpoint,
   testJsonParse,
   debugAuthFlow,
+  checkPasswordHash,
 } from "../controllers/authController";
 
 const router = Router();
@@ -24,6 +25,7 @@ router.post("/reset-password", resetPassword);
 router.post("/check-user", checkUser);
 router.post("/test-json", testJsonParse);
 router.post("/debug-auth-flow", debugAuthFlow);
+router.post("/check-password-hash", checkPasswordHash);
 
 
 // If you have adminLogin function, add it
