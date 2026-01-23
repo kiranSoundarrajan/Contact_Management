@@ -6,7 +6,7 @@ import {
   ContactFormData,
   ContactsResponse,
 } from '../../types/contact.types';
-import { RootState, AppDispatch } from '../store';
+import { RootState } from '../store'; // Import RootState
 
 const initialState: ContactState = {
   contacts: [],
@@ -25,17 +25,36 @@ const initialState: ContactState = {
   isInitialized: false,
 };
 
-interface EnhancedContactsResponse extends ContactsResponse {
-  forceRefresh?: boolean;
-  sync?: boolean;
-  viewType?: 'user' | 'admin';
-}
+/* =====================================================
+   🔹 CREATE CONTACT - FIXED
+===================================================== */
+export const createContact = createAsyncThunk<
+  { success: boolean; contact: Contact },
+  ContactFormData,
+  { state: RootState }
+>('contacts/createContact', async (data, { dispatch, getState }) => {
+  const response = await contactApi.createContact(data);
+  
+  // Immediately update local state
+  const state = getState();
+  const { currentPage } = state.contacts; // Remove unused 'total' variable
+  
+  // If on page 1, refresh immediately
+  if (currentPage === 1) {
+    dispatch(fetchUserContacts({ page: 1, forceRefresh: true }));
+  } else {
+    // If not on page 1, show toast and let user refresh
+    dispatch(setSyncTimestamp(Date.now()));
+  }
+  
+  return response;
+});
 
 /* =====================================================
-   🔹 FETCH USER CONTACTS (User + Admin)
+   🔹 FETCH USER CONTACTS - FIXED
 ===================================================== */
 export const fetchUserContacts = createAsyncThunk<
-  EnhancedContactsResponse,
+  ContactsResponse & { forceRefresh?: boolean },
   {
     page?: number;
     limit?: number;
@@ -52,28 +71,23 @@ export const fetchUserContacts = createAsyncThunk<
         page = 1,
         limit = 15,
         forceRefresh = false,
-        sync = false,
         search = '',
       } = params;
 
       const state = getState();
       const userRole = state.auth.user?.role;
-
-      /* ================= API ================= */
+      
       let response: ContactsResponse;
-
+      
       if (userRole === 'admin') {
         response = await contactApi.getAllContacts(page, limit, search);
       } else {
         response = await contactApi.getUserContacts(page, limit, search);
       }
-
+      
       return {
         ...response,
-        success: true,
         forceRefresh,
-        sync,
-        viewType: userRole === 'admin' ? 'admin' : 'user',
       };
     } catch (error: any) {
       return rejectWithValue(
@@ -87,12 +101,11 @@ export const fetchUserContacts = createAsyncThunk<
    🔹 FETCH ALL CONTACTS (ADMIN) - FIXED
 ===================================================== */
 export const fetchAllContacts = createAsyncThunk<
-  EnhancedContactsResponse,
+  ContactsResponse & { forceRefresh?: boolean },
   {
     page?: number;
     limit?: number;
     forceRefresh?: boolean;
-    sync?: boolean;
     search?: string;
   }
 >(
@@ -102,20 +115,15 @@ export const fetchAllContacts = createAsyncThunk<
       const {
         page = 1,
         limit = 15,
-        search = '',
         forceRefresh = false,
-        sync = false,
+        search = '',
       } = params;
 
-      // FIX: Use getAllContacts for admin
       const response = await contactApi.getAllContacts(page, limit, search);
-
+      
       return {
         ...response,
-        success: true,
         forceRefresh,
-        sync,
-        viewType: 'admin',
       };
     } catch (error: any) {
       return rejectWithValue(
@@ -151,40 +159,13 @@ export const syncContactsFromCache = createAsyncThunk<
 });
 
 /* =====================================================
-   🔹 CREATE CONTACT
-===================================================== */
-export const createContact = createAsyncThunk<
-  { success: boolean; contact: Contact },
-  ContactFormData
->('contacts/createContact', async (data, { dispatch }) => {
-  const response = await contactApi.createContact(data);
-
-  // Use AppDispatch type for the dispatch
-  const typedDispatch = dispatch as AppDispatch;
-  
-  setTimeout(() => {
-    typedDispatch(fetchUserContacts({ page: 1, forceRefresh: true }));
-  }, 100);
-
-  return response;
-});
-
-/* =====================================================
    🔹 UPDATE CONTACT
 ===================================================== */
 export const updateContact = createAsyncThunk<
   { success: boolean; contact: Contact },
   { id: number; data: Partial<ContactFormData> }
->('contacts/updateContact', async ({ id, data }, { dispatch }) => {
+>('contacts/updateContact', async ({ id, data }) => {
   const response = await contactApi.updateContact(id, data);
-
-  // Use AppDispatch type for the dispatch
-  const typedDispatch = dispatch as AppDispatch;
-  
-  setTimeout(() => {
-    typedDispatch(fetchUserContacts({ page: 1, forceRefresh: true }));
-  }, 100);
-
   return response;
 });
 
@@ -194,22 +175,11 @@ export const updateContact = createAsyncThunk<
 export const deleteContact = createAsyncThunk<
   { id: number; success: boolean; message: string },
   number
->('contacts/deleteContact', async (id, { dispatch }) => {
+>('contacts/deleteContact', async (id) => {
   const response = await contactApi.deleteContact(id);
-
-  // Use AppDispatch type for the dispatch
-  const typedDispatch = dispatch as AppDispatch;
-  
-  setTimeout(() => {
-    typedDispatch(fetchUserContacts({ page: 1, forceRefresh: true }));
-  }, 100);
-
   return { id, ...response };
 });
 
-/* =====================================================
-   🔹 SLICE
-===================================================== */
 const contactSlice = createSlice({
   name: 'contacts',
   initialState,
@@ -233,6 +203,19 @@ const contactSlice = createSlice({
     setPage: (state, action: PayloadAction<number>) => {
       state.currentPage = action.payload;
     },
+    setSyncTimestamp: (state, action: PayloadAction<number>) => {
+      state.syncTimestamp = action.payload;
+    },
+    // NEW: Add contact immediately to state
+    addContactToState: (state, action: PayloadAction<Contact>) => {
+      state.contacts = [action.payload, ...state.contacts];
+      state.total += 1;
+      
+      // Also add to cache if on page 1
+      if (state.currentPage === 1) {
+        state.userContactsCache = [action.payload, ...state.userContactsCache.slice(0, 14)];
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -247,20 +230,14 @@ const contactSlice = createSlice({
         state.totalPages = action.payload.totalPages;
         state.currentPage = action.payload.currentPage;
         state.lastFetchedPage = action.payload.currentPage;
-
-        // Only cache first page data
+        
+        // Cache first page based on user role
         if (action.payload.currentPage === 1) {
-          if (action.payload.viewType === 'admin') {
-            state.allContactsCache = action.payload.contacts;
-          } else {
-            state.userContactsCache = action.payload.contacts;
-          }
+          // Use state.contacts directly since we can't access auth state here
+          // The caching logic will be handled by the thunk
+          state.userContactsCache = action.payload.contacts;
         }
-
-        if (action.payload.sync) {
-          state.syncTimestamp = Date.now();
-        }
-
+        
         state.isInitialized = true;
         state.error = null;
       })
@@ -282,16 +259,12 @@ const contactSlice = createSlice({
         state.totalPages = action.payload.totalPages;
         state.currentPage = action.payload.currentPage;
         state.lastFetchedPage = action.payload.currentPage;
-
-        // Only cache first page for admin
+        
+        // Cache first page for admin
         if (action.payload.currentPage === 1) {
           state.allContactsCache = action.payload.contacts;
         }
-
-        if (action.payload.sync) {
-          state.syncTimestamp = Date.now();
-        }
-
+        
         state.isInitialized = true;
         state.error = null;
       })
@@ -301,19 +274,18 @@ const contactSlice = createSlice({
         state.error = action.payload as string;
       })
       
-      // Handle syncContactsFromCache
-      .addCase(syncContactsFromCache.fulfilled, (state, action) => {
-        if (action.payload.success) {
-          state.syncTimestamp = action.payload.timestamp;
-        }
-      })
-      
       // Handle createContact
       .addCase(createContact.pending, (state) => {
         state.loading = true;
       })
-      .addCase(createContact.fulfilled, (state) => {
+      .addCase(createContact.fulfilled, (state, action) => {
         state.loading = false;
+        // Add contact to beginning of list if on page 1
+        if (state.currentPage === 1) {
+          state.contacts = [action.payload.contact, ...state.contacts.slice(0, 14)];
+          state.total += 1;
+        }
+        state.syncTimestamp = Date.now();
       })
       .addCase(createContact.rejected, (state, action) => {
         state.loading = false;
@@ -326,10 +298,17 @@ const contactSlice = createSlice({
       })
       .addCase(updateContact.fulfilled, (state, action) => {
         state.loading = false;
-        // Update selected contact if it's the one being edited
-        if (state.selectedContact?.id === action.payload.contact.id) {
-          state.selectedContact = action.payload.contact;
+        // Update contact in the list if it exists
+        const index = state.contacts.findIndex(c => c.id === action.payload.contact.id);
+        if (index !== -1) {
+          state.contacts[index] = action.payload.contact;
         }
+        // Also update in cache if present
+        const cacheIndex = state.userContactsCache.findIndex(c => c.id === action.payload.contact.id);
+        if (cacheIndex !== -1) {
+          state.userContactsCache[cacheIndex] = action.payload.contact;
+        }
+        state.syncTimestamp = Date.now();
       })
       .addCase(updateContact.rejected, (state, action) => {
         state.loading = false;
@@ -342,22 +321,28 @@ const contactSlice = createSlice({
       })
       .addCase(deleteContact.fulfilled, (state, action) => {
         state.loading = false;
-        // Remove from cache if exists
-        state.allContactsCache = state.allContactsCache.filter(
-          contact => contact.id !== action.payload.id
-        );
+        // Remove from contacts list
+        state.contacts = state.contacts.filter(contact => contact.id !== action.payload.id);
+        state.total -= 1;
+        // Remove from cache
         state.userContactsCache = state.userContactsCache.filter(
           contact => contact.id !== action.payload.id
         );
-        
-        // Clear selected contact if it was deleted
-        if (state.selectedContact?.id === action.payload.id) {
-          state.selectedContact = null;
-        }
+        state.allContactsCache = state.allContactsCache.filter(
+          contact => contact.id !== action.payload.id
+        );
+        state.syncTimestamp = Date.now();
       })
       .addCase(deleteContact.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message || 'Failed to delete contact';
+      })
+      
+      // Handle syncContactsFromCache
+      .addCase(syncContactsFromCache.fulfilled, (state, action) => {
+        if (action.payload.success) {
+          state.syncTimestamp = action.payload.timestamp;
+        }
       });
   },
 });
@@ -369,7 +354,9 @@ export const {
   resetContacts,
   startPageLoading,
   stopPageLoading,
-  setPage
+  setPage,
+  setSyncTimestamp,
+  addContactToState
 } = contactSlice.actions;
 
 export default contactSlice.reducer;

@@ -7,14 +7,14 @@ import {
   createContact,
   resetContacts,
   clearError,
-  syncContactsFromCache
+  addContactToState, // Import new action
 } from '../store/slices/contactSlice';
 import Header from '../components/common/Header';
 import ContactForm from '../components/contacts/ContactForm';
 import ContactList from '../components/contacts/ContactList';
 import Modal from '../components/ui/Modal';
 import { ContactFormData } from '../types/contact.types';
-import { FaPlus, FaAddressBook, FaSync } from 'react-icons/fa';
+import { FaPlus, FaAddressBook} from 'react-icons/fa';
 
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -27,23 +27,17 @@ const DashboardPage: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
   const hasLoadedRef = useRef(false);
 
-  // Declare loadContacts before using it
   const loadContacts = useCallback(async () => {
     try {
-      // Use fetchUserContacts for both users and admins
       await dispatch(fetchUserContacts({ 
         page, 
         limit: 15
       })).unwrap();
     } catch (err: any) {
       console.error('Failed to load contacts:', err.message);
-      if (err.message?.includes('Access denied') && user?.role === 'admin') {
-        // If admin gets access denied, try admin API
-        toast.error('Admin access issue. Redirecting to admin page...');
-        navigate('/admin/contacts');
-      }
+      toast.error('Failed to load contacts');
     }
-  }, [dispatch, page, user?.role, navigate]);
+  }, [dispatch, page]);
 
   // Fetch contacts on mount and page change
   useEffect(() => {
@@ -52,8 +46,6 @@ const DashboardPage: React.FC = () => {
       return;
     }
     
-    // If user is admin, they should use admin page for admin features
-    // But normal dashboard should still work for their own contacts
     if (!hasLoadedRef.current) {
       dispatch(resetContacts());
       dispatch(clearError());
@@ -63,27 +55,25 @@ const DashboardPage: React.FC = () => {
     loadContacts();
   }, [dispatch, navigate, user, page, loadContacts]);
 
-  // Sync contacts when syncTimestamp changes
-  useEffect(() => {
-    if (syncTimestamp && page === 1 && user?.role !== 'admin') {
-      loadContacts();
-    }
-  }, [syncTimestamp, page, user?.role, loadContacts]);
-
   const handleCreateContact = async (data: ContactFormData) => {
     try {
       setIsCreating(true);
-      await dispatch(createContact(data)).unwrap();
+      const result = await dispatch(createContact(data)).unwrap();
 
       setIsModalOpen(false);
       setIsCreating(false);
 
+      // Add contact to state immediately
+      dispatch(addContactToState(result.contact));
+      
       toast.success('Contact created successfully!');
       
+      // If not on page 1, suggest going to page 1
       if (page !== 1) {
-        setPage(1);
-      } else {
-        await loadContacts();
+        toast('New contact added. Go to page 1 to see it.', {
+          icon: '📄',
+          duration: 4000,
+        });
       }
 
     } catch (error: any) {
@@ -95,15 +85,6 @@ const DashboardPage: React.FC = () => {
   const handlePageChange = useCallback((newPage: number) => {
     setPage(newPage);
   }, []);
-
-  const handleManualSync = useCallback(async () => {
-    try {
-      await dispatch(syncContactsFromCache());
-      toast.success('Contacts synced successfully!');
-    } catch (err: any) {
-      toast.error('Failed to sync contacts');
-    }
-  }, [dispatch]);
 
   const handleCloseModal = useCallback(() => {
     if (!isCreating) {
@@ -119,14 +100,6 @@ const DashboardPage: React.FC = () => {
           <div className="flex-1">
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-gray-900">Welcome back, {user?.username}!</h1>
-              <button
-                onClick={handleManualSync}
-                className="text-gray-500 hover:text-blue-600 transition-colors p-2"
-                title="Sync contacts"
-                disabled={loading}
-              >
-                <FaSync className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              </button>
             </div>
             <p className="mt-1 text-sm text-gray-600">
               You have <span className="font-semibold">{total}</span> contact(s) in your list
@@ -173,7 +146,7 @@ const DashboardPage: React.FC = () => {
                   </p>
                   {syncTimestamp && (
                     <p className="text-xs text-gray-500">
-                      Last synced: {new Date(syncTimestamp).toLocaleTimeString()}
+                      Last updated: {new Date(syncTimestamp).toLocaleTimeString()}
                     </p>
                   )}
                 </div>
@@ -185,7 +158,6 @@ const DashboardPage: React.FC = () => {
                     totalPages={Math.ceil(total / 15)}
                     total={total}
                     onPageChange={handlePageChange}
-                    key={`contact-list-${page}-${syncTimestamp}`}
                   />
                 </div>
               </div>
