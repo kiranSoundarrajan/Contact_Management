@@ -47,8 +47,6 @@ const AdminContactsPage: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
-  const page = currentPage;
-
   /* ---------------- SEARCH DEBOUNCE ---------------- */
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -81,7 +79,7 @@ const AdminContactsPage: React.FC = () => {
 
         await dispatch(
           fetchUserContacts({
-            page,
+            page: currentPage,
             limit: 15,
             search: debouncedSearch,
           })
@@ -96,7 +94,7 @@ const AdminContactsPage: React.FC = () => {
     };
 
     loadContacts();
-  }, [dispatch, navigate, user, debouncedSearch, page]);
+  }, [dispatch, navigate, user, debouncedSearch, currentPage]);
 
   /* ---------------- PAGE CHANGE HANDLER (NO FETCH INSIDE) ---------------- */
   const handlePageChange = useCallback(
@@ -106,7 +104,7 @@ const AdminContactsPage: React.FC = () => {
         newPage > totalPages ||
         contactsLoading ||
         pageLoading ||
-        newPage === page
+        newPage === currentPage
       ) {
         return;
       }
@@ -116,7 +114,7 @@ const AdminContactsPage: React.FC = () => {
       // ✅ Only update page. Fetch happens in useEffect.
       dispatch(setPage(newPage));
     },
-    [dispatch, totalPages, contactsLoading, pageLoading, page]
+    [dispatch, totalPages, contactsLoading, pageLoading, currentPage]
   );
 
   /* ---------------- GENERATE PAGINATION NUMBERS ---------------- */
@@ -127,7 +125,7 @@ const AdminContactsPage: React.FC = () => {
     if (totalPages <= maxVisible) {
       for (let i = 1; i <= totalPages; i++) pages.push(i);
     } else {
-      let startPage = Math.max(1, page - 2);
+      let startPage = Math.max(1, currentPage - 2);
       let endPage = Math.min(totalPages, startPage + maxVisible - 1);
 
       if (endPage - startPage + 1 < maxVisible) {
@@ -193,7 +191,7 @@ const AdminContactsPage: React.FC = () => {
       setSelectedContact(null);
 
       // ✅ refresh current page
-      dispatch(setPage(page));
+      dispatch(setPage(currentPage));
     } catch (err: any) {
       toast.error(err?.message || "Update failed");
     }
@@ -209,10 +207,10 @@ const AdminContactsPage: React.FC = () => {
       setSelectedContact(null);
 
       // ✅ if last contact deleted from last page → go previous page
-      if (contacts.length === 1 && page > 1) {
-        dispatch(setPage(page - 1));
+      if (contacts.length === 1 && currentPage > 1) {
+        dispatch(setPage(currentPage - 1));
       } else {
-        dispatch(setPage(page));
+        dispatch(setPage(currentPage));
       }
     } catch (err: any) {
       toast.error(err?.message || "Delete failed");
@@ -252,13 +250,11 @@ const AdminContactsPage: React.FC = () => {
               <span className="mx-2">•</span>
               Page:{" "}
               <span className="font-semibold text-gray-800">
-                {page} of {totalPages}
+                {currentPage} of {totalPages}
               </span>
               <span className="mx-2">•</span>
               Showing{" "}
-              <span className="font-semibold text-gray-800">
-                {contacts.length}
-              </span>{" "}
+              <span className="font-semibold text-gray-800">{contacts.length}</span>{" "}
               contacts
               {syncTimestamp && (
                 <span className="ml-2 text-xs text-gray-500">
@@ -290,7 +286,7 @@ const AdminContactsPage: React.FC = () => {
                   <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin absolute top-0 left-0"></div>
                 </div>
                 <p className="text-sm font-medium text-gray-700">
-                  {pageLoading ? `Loading page ${page}` : "Loading contacts..."}
+                  {pageLoading ? `Loading page ${currentPage}` : "Loading contacts..."}
                 </p>
               </div>
             </div>
@@ -332,16 +328,14 @@ const AdminContactsPage: React.FC = () => {
               <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className="text-sm text-gray-600 flex items-center gap-2">
                   <span className="hidden sm:inline">Page</span>
-                  <span className="font-semibold text-gray-800">{page}</span>
+                  <span className="font-semibold text-gray-800">{currentPage}</span>
                   <span>of</span>
-                  <span className="font-semibold text-gray-800">
-                    {totalPages}
-                  </span>
+                  <span className="font-semibold text-gray-800">{totalPages}</span>
                 </div>
 
                 <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-2">
                   <button
-                    disabled={page === 1 || contactsLoading || pageLoading}
+                    disabled={currentPage === 1 || contactsLoading || pageLoading}
                     onClick={() => handlePageChange(1)}
                     className="p-2 border border-gray-300 rounded-lg text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white hover:border-gray-400 transition-all duration-200 flex items-center gap-1"
                   >
@@ -350,8 +344,8 @@ const AdminContactsPage: React.FC = () => {
                   </button>
 
                   <button
-                    disabled={page === 1 || contactsLoading || pageLoading}
-                    onClick={() => handlePageChange(page - 1)}
+                    disabled={currentPage === 1 || contactsLoading || pageLoading}
+                    onClick={() => handlePageChange(currentPage - 1)}
                     className="p-2 border border-gray-300 rounded-lg text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white hover:border-gray-400 transition-all duration-200 flex items-center gap-1"
                   >
                     <FaChevronLeft className="w-3 h-3" />
@@ -373,7 +367,7 @@ const AdminContactsPage: React.FC = () => {
                           onClick={() => handlePageChange(Number(pageNum))}
                           disabled={contactsLoading || pageLoading}
                           className={`relative px-3 py-2 min-w-[40px] border rounded-lg text-sm font-medium transition-all duration-150 ${
-                            page === pageNum
+                            currentPage === pageNum
                               ? "bg-blue-600 text-white border-blue-600"
                               : "border-gray-300 text-gray-700 hover:bg-white hover:border-gray-400"
                           } disabled:opacity-40 disabled:cursor-not-allowed`}
@@ -385,8 +379,8 @@ const AdminContactsPage: React.FC = () => {
                   </div>
 
                   <button
-                    disabled={page === totalPages || contactsLoading || pageLoading}
-                    onClick={() => handlePageChange(page + 1)}
+                    disabled={currentPage === totalPages || contactsLoading || pageLoading}
+                    onClick={() => handlePageChange(currentPage + 1)}
                     className="p-2 border border-gray-300 rounded-lg text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white hover:border-gray-400 transition-all duration-200 flex items-center gap-1"
                   >
                     <span className="hidden sm:inline">Next</span>
@@ -394,7 +388,7 @@ const AdminContactsPage: React.FC = () => {
                   </button>
 
                   <button
-                    disabled={page === totalPages || contactsLoading || pageLoading}
+                    disabled={currentPage === totalPages || contactsLoading || pageLoading}
                     onClick={() => handlePageChange(totalPages)}
                     className="p-2 border border-gray-300 rounded-lg text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white hover:border-gray-400 transition-all duration-200 flex items-center gap-1"
                   >
@@ -406,7 +400,7 @@ const AdminContactsPage: React.FC = () => {
                 <div className="flex items-center gap-2 text-sm">
                   <span className="text-gray-600">Go to:</span>
                   <select
-                    value={page}
+                    value={currentPage}
                     onChange={(e) => handlePageChange(Number(e.target.value))}
                     disabled={contactsLoading || pageLoading}
                     className="border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 text-sm"
