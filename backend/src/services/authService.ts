@@ -29,7 +29,6 @@ export const registerService = async (data: any): Promise<SafeUserData> => {
       throw new Error("User already exists with this email");
     }
 
-    // Create user with hashed password
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({
       username,
@@ -52,6 +51,40 @@ export const registerService = async (data: any): Promise<SafeUserData> => {
   }
 };
 
+export const loginService = async (email: string, password: string): Promise<SafeUserData | null> => {
+  console.log(`\n🔍 LOGIN SERVICE START ================`);
+  console.log(`Email: ${email}`);
+  
+  const user = await User.findOne({ where: { email } });
+  
+  if (!user) {
+    console.log(`❌ User not found: ${email}`);
+    return null;
+  }
+  
+  console.log(`✅ User found in DB:`);
+  console.log(`   ID: ${user.id}`);
+  console.log(`   Username: ${user.username}`);
+  console.log(`   Role: ${user.role}`);
+  
+  const isMatch = await bcrypt.compare(password, user.password);
+  
+  if (!isMatch) {
+    console.log(`❌ Password mismatch`);
+    return null;
+  }
+  
+  console.log(`✅ Password verified successfully`);
+  
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    role: user.role
+  };
+};
+
+// Add missing createAdminService
 export const createAdminService = async () => {
   try {
     const adminEmail = process.env.ADMIN_EMAIL || "kiransoundarrajan@gmail.com";
@@ -99,46 +132,4 @@ export const createAdminService = async () => {
   } catch (error: any) {
     throw new Error(`Failed to create admin: ${error.message}`);
   }
-};
-
-export const loginService = async (email: string, password: string): Promise<SafeUserData | null> => {
-  console.log(`\n🔍 LOGIN SERVICE START ================`);
-  console.log(`Email: ${email}`);
-  console.log(`Password: ${password ? "***" + password.substring(password.length - 2) : "undefined"}`);
-  
-  const user = await User.findOne({ where: { email } });
-  
-  if (!user) {
-    console.log(`❌ User not found: ${email}`);
-    return null;
-  }
-  
-  console.log(`✅ User found in DB:`);
-  console.log(`   ID: ${user.id}`);
-  console.log(`   Username: ${user.username}`);
-  console.log(`   Email: ${user.email}`);
-  console.log(`   Role: ${user.role}`);
-  console.log(`   Password hash: ${user.password.substring(0, 30)}...`);
-  
-  // FIXED: Use direct bcrypt comparison
-  const isMatch = await bcrypt.compare(password, user.password);
-  
-  console.log(`🔍 Password comparison:`);
-  console.log(`   Input: ${password}`);
-  console.log(`   Hash: ${user.password.substring(0, 30)}...`);
-  console.log(`   Match: ${isMatch}`);
-  
-  if (!isMatch) {
-    console.log(`❌ Password mismatch`);
-    return null;
-  }
-  
-  console.log(`✅ Password verified successfully`);
-  
-  return {
-    id: user.id,
-    username: user.username,
-    email: user.email,
-    role: user.role
-  };
 };

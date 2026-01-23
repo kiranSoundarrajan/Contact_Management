@@ -8,28 +8,12 @@ import bcrypt from "bcryptjs";
 export const login = async (req: Request, res: Response) => {
   try {
     console.log("\n🔍 LOGIN ENDPOINT HIT ================");
-    console.log("Headers:", req.headers);
-    console.log("Content-Type:", req.headers['content-type']);
     console.log("Body:", req.body);
-    console.log("Body type:", typeof req.body);
-    console.log("======================================");
-    
-    // Check if body exists
-    if (!req.body) {
-      console.log("❌ ERROR: req.body is undefined");
-      return res.status(400).json({
-        success: false,
-        message: "Request body is missing"
-      });
-    }
     
     const { email, password } = req.body;
     
-    // Check if email and password exist
     if (!email || !password) {
       console.log("❌ Missing email or password");
-      console.log("Email:", email);
-      console.log("Password:", password ? "***" : "undefined");
       return res.status(400).json({
         success: false,
         message: "Email and password are required"
@@ -38,7 +22,6 @@ export const login = async (req: Request, res: Response) => {
     
     console.log("✅ Email and password received");
     
-    // Call the service
     const user = await loginService(email, password);
     
     if (!user) {
@@ -51,7 +34,6 @@ export const login = async (req: Request, res: Response) => {
 
     console.log("✅ Login service successful, generating token");
 
-    // Generate token
     const token = jwt.sign(
       { 
         userId: user.id, 
@@ -78,110 +60,8 @@ export const login = async (req: Request, res: Response) => {
     });
     
   } catch (error: any) {
-    console.error("❌ LOGIN ERROR DETAILS:");
-    console.error("Error name:", error.name);
-    console.error("Error message:", error.message);
-    console.error("Error stack:", error.stack);
+    console.error("❌ LOGIN ERROR:", error.message);
     
-    res.status(500).json({
-      success: false,
-      message: "Login failed",
-      error: error.message
-    });
-  }
-};
-
-// NEW: Admin login endpoint
-export const adminLogin = async (req: Request, res: Response) => {
-  try {
-    console.log("\n🔍 ADMIN LOGIN ENDPOINT ================");
-    
-    const { email, password } = req.body;
-    
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: "Email and password are required"
-      });
-    }
-    
-    // Special admin login
-    const adminEmail = process.env.ADMIN_EMAIL || "kiransoundarrajan@gmail.com";
-    const adminPassword = process.env.ADMIN_PASSWORD || "1234567890";
-    
-    if (email === adminEmail && password === adminPassword) {
-      // Find or create admin user
-      let admin = await User.findOne({ where: { email: adminEmail } });
-      
-      if (!admin) {
-        // Create admin
-        const hashedPassword = await bcrypt.hash(adminPassword, 10);
-        admin = await User.create({
-          username: "Nakkeeran S",
-          email: adminEmail,
-          password: hashedPassword,
-          role: "admin"
-        });
-      }
-      
-      // Generate token
-      const token = jwt.sign(
-        { 
-          userId: admin.id, 
-          email: admin.email,
-          role: "admin" 
-        },
-        process.env.JWT_SECRET as string,
-        { expiresIn: "1d" }
-      );
-      
-      console.log("✅ ADMIN LOGIN SUCCESSFUL");
-      
-      res.json({
-        success: true,
-        token,
-        user: {
-          id: admin.id,
-          username: admin.username,
-          email: admin.email,
-          role: "admin",
-        },
-      });
-    } else {
-      // Try normal login
-      const user = await loginService(email, password);
-      
-      if (!user) {
-        return res.status(401).json({
-          success: false,
-          message: "Invalid email or password"
-        });
-      }
-      
-      const token = jwt.sign(
-        { 
-          userId: user.id, 
-          email: user.email,
-          role: user.role 
-        },
-        process.env.JWT_SECRET as string,
-        { expiresIn: "1d" }
-      );
-
-      res.json({
-        success: true,
-        token,
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          role: user.role,
-        },
-      });
-    }
-    
-  } catch (error: any) {
-    console.error("❌ ADMIN LOGIN ERROR:", error.message);
     res.status(500).json({
       success: false,
       message: "Login failed",
@@ -215,6 +95,7 @@ export const register = async (req: Request, res: Response) => {
     const token = jwt.sign(
       { 
         userId: user.id, 
+        email: user.email,
         role: user.role 
       },
       process.env.JWT_SECRET as string,
@@ -237,6 +118,14 @@ export const register = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error("❌ REGISTER ERROR:", error.message);
+    
+    if (error.message.includes("already exists")) {
+      return res.status(400).json({
+        success: false,
+        message: "User already exists with this email"
+      });
+    }
+    
     res.status(400).json({
       success: false,
       message: error.message || "Registration failed",
@@ -297,7 +186,7 @@ export const logout = (req: Request, res: Response) => {
   }
 };
 
-// NEW: Reset password endpoint for debugging
+// Reset password endpoint for debugging
 export const resetPassword = async (req: Request, res: Response) => {
   try {
     const { email, newPassword } = req.body;
@@ -325,8 +214,9 @@ export const resetPassword = async (req: Request, res: Response) => {
     console.log("✅ User found:", user.email);
     console.log("Old hash:", user.password.substring(0, 30) + "...");
     
-    // Update password - will be hashed by the hook
-    await user.update({ password: newPassword });
+    // Update password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await user.update({ password: hashedPassword });
     
     console.log("✅ Password updated");
     console.log("New hash:", user.password.substring(0, 30) + "...");
@@ -349,7 +239,7 @@ export const resetPassword = async (req: Request, res: Response) => {
   }
 };
 
-// NEW: Check user endpoint
+// Check user endpoint
 export const checkUser = async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
@@ -411,7 +301,7 @@ export const testEndpoint = async (req: Request, res: Response) => {
   });
 };
 
-// ADD THIS NEW TEST FUNCTION
+// Test JSON parse function
 export const testJsonParse = async (req: Request, res: Response) => {
   try {
     console.log("\n✅ TEST JSON PARSE ENDPOINT CALLED");

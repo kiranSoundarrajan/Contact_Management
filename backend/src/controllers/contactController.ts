@@ -5,14 +5,12 @@ import {
   updateContactService,
   deleteContactService,
   getContactByIdService,
-  validateDOB
+  validateDOB,
+  contactCache
 } from "../services/contactService";
 
-// Import the contactCache from contactService
-import { contactCache } from "../services/contactService";
-
 // ===============================
-// 🔹 CREATE CONTACT (User) - FIXED
+// 🔹 CREATE CONTACT (User)
 // ===============================
 export const createContact = async (req: Request, res: Response) => {
   try {
@@ -58,8 +56,16 @@ export const createContact = async (req: Request, res: Response) => {
     res.status(201).json({
       success: true,
       message: "Contact created successfully",
-      contact,
-      data: contact // Add this for frontend compatibility
+      contact: {
+        id: contact.id,
+        name: contact.name,
+        email: contact.email,
+        place: contact.place,
+        dob: contact.dob,
+        userId: contact.userId,
+        createdAt: contact.createdAt,
+        updatedAt: contact.updatedAt
+      }
     });
   } catch (error: any) {
     console.error("❌ Create contact error:", error);
@@ -79,7 +85,7 @@ export const createContact = async (req: Request, res: Response) => {
 };
 
 // ===============================
-// 🔹 GET ALL CONTACTS (Admin) - FIXED
+// 🔹 GET ALL CONTACTS (Admin)
 // ===============================
 export const getContacts = async (req: Request, res: Response) => {
   try {
@@ -93,14 +99,6 @@ export const getContacts = async (req: Request, res: Response) => {
     console.log(`Page: ${page}, Limit: ${limit}, Search: "${search}"`);
 
     const result = await getContactsService(page, limit, search);
-
-    // 🛠️ FIX: Add pagination headers for frontend
-    res.set({
-      'X-Total-Count': result.total.toString(),
-      'X-Total-Pages': result.totalPages.toString(),
-      'X-Current-Page': page.toString(),
-      'X-Per-Page': limit.toString()
-    });
 
     res.json({
       success: true,
@@ -123,7 +121,7 @@ export const getContacts = async (req: Request, res: Response) => {
 };
 
 // ===============================
-// 🔹 GET USER CONTACTS (User) - FIXED
+// 🔹 GET USER CONTACTS (User)
 // ===============================
 export const getUserContacts = async (req: Request, res: Response) => {
   try {
@@ -146,15 +144,6 @@ export const getUserContacts = async (req: Request, res: Response) => {
 
     const result = await getContactsService(page, limit, search, userId);
 
-    // 🛠️ FIX: Add pagination headers
-    res.set({
-      'X-Total-Count': result.total.toString(),
-      'X-Total-Pages': result.totalPages.toString(),
-      'X-Current-Page': page.toString(),
-      'X-Per-Page': limit.toString(),
-      'Cache-Control': 'private, max-age=30'
-    });
-
     res.json({
       success: true,
       total: result.total,
@@ -176,7 +165,7 @@ export const getUserContacts = async (req: Request, res: Response) => {
 };
 
 // ===============================
-// 🔹 GET ADMIN CONTACTS (Admin only) - FIXED
+// 🔹 GET ADMIN CONTACTS (Admin only)
 // ===============================
 export const getAdminContacts = async (req: Request, res: Response) => {
   try {
@@ -199,14 +188,6 @@ export const getAdminContacts = async (req: Request, res: Response) => {
 
     const result = await getContactsService(page, limit, search);
 
-    // 🛠️ FIX: Add pagination headers
-    res.set({
-      'X-Total-Count': result.total.toString(),
-      'X-Total-Pages': result.totalPages.toString(),
-      'X-Current-Page': page.toString(),
-      'X-Per-Page': limit.toString()
-    });
-
     res.json({
       success: true,
       total: result.total,
@@ -228,7 +209,7 @@ export const getAdminContacts = async (req: Request, res: Response) => {
 };
 
 // ===============================
-// 🔹 UPDATE CONTACT (Admin)
+// 🔹 UPDATE CONTACT (Admin) - USING updateContactService
 // ===============================
 export const updateContact = async (req: Request, res: Response) => {
   try {
@@ -274,7 +255,7 @@ export const updateContact = async (req: Request, res: Response) => {
 };
 
 // ===============================
-// 🔹 DELETE CONTACT (Admin)
+// 🔹 DELETE CONTACT (Admin) - USING deleteContactService
 // ===============================
 export const deleteContact = async (req: Request, res: Response) => {
   try {
@@ -302,7 +283,7 @@ export const deleteContact = async (req: Request, res: Response) => {
 };
 
 // ===============================
-// 🔹 GET CONTACT BY ID (Admin)
+// 🔹 GET CONTACT BY ID (Admin) - USING getContactByIdService
 // ===============================
 export const getContactById = async (req: Request, res: Response) => {
   try {

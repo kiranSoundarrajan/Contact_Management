@@ -3,22 +3,32 @@ import {
   register, 
   login, 
   createAdmin, 
-  logout, 
-  testEndpoint, 
-  resetPassword, 
+  logout,
+  resetPassword,
   checkUser,
-  testJsonParse  // ADD THIS IMPORT
+  testEndpoint,
+  testJsonParse,
 } from "../controllers/authController";
 
 const router = Router();
 
+// ===============================
+// 🔹 AUTHENTICATION ROUTES
+// ===============================
 router.post("/register", register);
 router.post("/login", login);
 router.post("/createAdmin", createAdmin);
 router.post("/logout", logout);
 router.post("/reset-password", resetPassword);
 router.post("/check-user", checkUser);
-router.post("/test-json", testJsonParse);  // ADD THIS LINE
+router.post("/test-json", testJsonParse);
+
+// If you have adminLogin function, add it
+// router.post("/admin-login", adminLogin);
+
+// ===============================
+// 🔹 TEST ROUTES
+// ===============================
 router.get("/test", testEndpoint);
 
 export default router;
