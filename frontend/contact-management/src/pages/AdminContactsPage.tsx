@@ -1,174 +1,178 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-hot-toast';
-import { useAppDispatch, useAppSelector } from '../store/hooks';
+import React, { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
 import {
-  fetchUserContacts, // ✅ Use fetchUserContacts instead of fetchAllContacts
+  fetchUserContacts,
   updateContact,
   deleteContact,
   startPageLoading,
   stopPageLoading,
-  setPage
-} from '../store/slices/contactSlice';
-import Header from '../components/common/Header';
-import ContactTable from '../components/contacts/ContactTable';
-import Modal from '../components/ui/Modal';
-import ContactForm from '../components/contacts/ContactForm';
-import Input from '../components/ui/Input';
-import Button from '../components/ui/Button';
-import { Contact, ContactFormData } from '../types/contact.types';
-import { FaSearch, FaChevronLeft, FaChevronRight, FaStepBackward, FaStepForward, FaSync } from 'react-icons/fa';
+  setPage,
+} from "../store/slices/contactSlice";
+import Header from "../components/common/Header";
+import ContactTable from "../components/contacts/ContactTable";
+import Modal from "../components/ui/Modal";
+import ContactForm from "../components/contacts/ContactForm";
+import Input from "../components/ui/Input";
+import Button from "../components/ui/Button";
+import { Contact, ContactFormData } from "../types/contact.types";
+import {
+  FaSearch,
+  FaChevronLeft,
+  FaChevronRight,
+  FaStepBackward,
+  FaStepForward,
+  FaSync,
+} from "react-icons/fa";
 
 const AdminContactsPage: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
   const { user } = useAppSelector((state) => state.auth);
-  const { 
-    contacts, 
-    loading: contactsLoading, 
+  const {
+    contacts,
+    loading: contactsLoading,
     pageLoading,
-    total, 
+    total,
     totalPages,
     syncTimestamp,
-    currentPage
+    currentPage,
   } = useAppSelector((state) => state.contacts);
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [isChangingPage, setIsChangingPage] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
-  // Use Redux currentPage as the source of truth
   const page = currentPage;
 
   /* ---------------- SEARCH DEBOUNCE ---------------- */
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm);
+
+      // ✅ whenever new search happens, go to page 1
       if (currentPage !== 1) {
         dispatch(setPage(1));
       }
     }, 500);
+
     return () => clearTimeout(timer);
   }, [searchTerm, dispatch, currentPage]);
 
-  /* ---------------- FETCH CONTACTS ---------------- */
+  /* ---------------- FETCH CONTACTS (ONLY HERE) ---------------- */
   useEffect(() => {
-    if (!user || user.role !== 'admin') {
-      navigate('/dashboard');
+    if (!user) {
+      navigate("/login");
       return;
     }
-    
+
+    if (user.role !== "admin") {
+      navigate("/dashboard");
+      return;
+    }
+
     const loadContacts = async () => {
       try {
-        // ✅ Use fetchUserContacts instead of fetchAllContacts
-        await dispatch(fetchUserContacts({ 
-          page, 
-          limit: 15,
-          search: debouncedSearch
-        }));
+        dispatch(startPageLoading());
+
+        await dispatch(
+          fetchUserContacts({
+            page,
+            limit: 15,
+            search: debouncedSearch,
+          })
+        ).unwrap();
+
+        dispatch(stopPageLoading());
       } catch (error: any) {
-        console.error('Admin API failed:', error);
-        toast.error('Failed to load contacts');
+        dispatch(stopPageLoading());
+        console.error("Admin Contacts fetch failed:", error);
+        toast.error(error?.message || "Failed to load contacts");
       }
     };
-    
+
     loadContacts();
   }, [dispatch, navigate, user, debouncedSearch, page]);
 
-  /* ---------------- SMOOTH PAGE CHANGE HANDLER ---------------- */
-  const handlePageChange = useCallback(async (newPage: number) => {
-    if (
-      newPage < 1 ||
-      newPage > totalPages ||
-      contactsLoading ||
-      pageLoading ||
-      newPage === page ||
-      isChangingPage
-    ) {
-      return;
-    }
-    
-    setIsChangingPage(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    dispatch(startPageLoading());
-    dispatch(setPage(newPage));
-    
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    try {
-      // ✅ Use fetchUserContacts instead of fetchAllContacts
-      await dispatch(fetchUserContacts({ 
-        page: newPage, 
-        limit: 15,
-        search: debouncedSearch
-      }));
-    } catch (error: any) {
-      console.error('Page change error:', error);
-      toast.error('Failed to load contacts');
-      dispatch(stopPageLoading());
-    } finally {
-      setTimeout(() => {
-        setIsChangingPage(false);
-      }, 300);
-    }
-  }, [dispatch, debouncedSearch, page, totalPages, contactsLoading, pageLoading, isChangingPage]);
+  /* ---------------- PAGE CHANGE HANDLER (NO FETCH INSIDE) ---------------- */
+  const handlePageChange = useCallback(
+    (newPage: number) => {
+      if (
+        newPage < 1 ||
+        newPage > totalPages ||
+        contactsLoading ||
+        pageLoading ||
+        newPage === page
+      ) {
+        return;
+      }
+
+      window.scrollTo({ top: 0, behavior: "smooth" });
+
+      // ✅ Only update page. Fetch happens in useEffect.
+      dispatch(setPage(newPage));
+    },
+    [dispatch, totalPages, contactsLoading, pageLoading, page]
+  );
 
   /* ---------------- GENERATE PAGINATION NUMBERS ---------------- */
   const generatePageNumbers = () => {
-    const pages = [];
+    const pages: (number | string)[] = [];
     const maxVisible = 5;
-    
+
     if (totalPages <= maxVisible) {
-      for (let i = 1; i <= totalPages; i++) {
-        pages.push(i);
-      }
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
     } else {
       let startPage = Math.max(1, page - 2);
       let endPage = Math.min(totalPages, startPage + maxVisible - 1);
-      
+
       if (endPage - startPage + 1 < maxVisible) {
         startPage = Math.max(1, endPage - maxVisible + 1);
       }
-      
+
       if (startPage > 1) {
         pages.push(1);
-        if (startPage > 2) pages.push('...');
+        if (startPage > 2) pages.push("...");
       }
-      
-      for (let i = startPage; i <= endPage; i++) {
-        pages.push(i);
-      }
-      
+
+      for (let i = startPage; i <= endPage; i++) pages.push(i);
+
       if (endPage < totalPages) {
-        if (endPage < totalPages - 1) pages.push('...');
+        if (endPage < totalPages - 1) pages.push("...");
         pages.push(totalPages);
       }
     }
-    
+
     return pages;
   };
 
-  // ✅ Remove handleManualSync function since syncContactsFromCache doesn't exist
-  // Or create a simple refresh function
+  /* ---------------- REFRESH ---------------- */
   const handleRefresh = useCallback(async () => {
     try {
       dispatch(startPageLoading());
-      await dispatch(fetchUserContacts({ 
-        page: currentPage, 
-        limit: 15,
-        search: debouncedSearch,
-        forceRefresh: true 
-      }));
-      toast.success('Contacts refreshed successfully!');
+
+      await dispatch(
+        fetchUserContacts({
+          page: currentPage,
+          limit: 15,
+          search: debouncedSearch,
+          forceRefresh: true,
+        })
+      ).unwrap();
+
+      dispatch(stopPageLoading());
+      toast.success("Contacts refreshed successfully!");
     } catch (err: any) {
-      toast.error('Failed to refresh contacts');
+      dispatch(stopPageLoading());
+      toast.error(err?.message || "Failed to refresh contacts");
     }
   }, [dispatch, currentPage, debouncedSearch]);
 
+  /* ---------------- EDIT / DELETE ---------------- */
   const handleEdit = (contact: Contact) => {
     setSelectedContact(contact);
     setIsEditModalOpen(true);
@@ -181,66 +185,81 @@ const AdminContactsPage: React.FC = () => {
 
   const handleUpdateContact = async (data: ContactFormData) => {
     if (!selectedContact) return;
+
     try {
       await dispatch(updateContact({ id: selectedContact.id, data })).unwrap();
-      toast.success('Contact updated');
+      toast.success("Contact updated");
       setIsEditModalOpen(false);
       setSelectedContact(null);
-      
-      // Refresh contacts after update
-      await dispatch(fetchUserContacts({ 
-        page, 
-        limit: 15,
-        search: debouncedSearch
-      }));
+
+      // ✅ refresh current page
+      dispatch(setPage(page));
     } catch (err: any) {
-      toast.error(err.payload || err.message || 'Update failed');
+      toast.error(err?.message || "Update failed");
     }
   };
 
   const handleConfirmDelete = async () => {
     if (!selectedContact) return;
+
     try {
       await dispatch(deleteContact(selectedContact.id)).unwrap();
-      toast.success('Contact deleted');
+      toast.success("Contact deleted");
       setIsDeleteModalOpen(false);
       setSelectedContact(null);
-      
-      // Refresh contacts after delete
-      await dispatch(fetchUserContacts({ 
-        page, 
-        limit: 15,
-        search: debouncedSearch
-      }));
+
+      // ✅ if last contact deleted from last page → go previous page
+      if (contacts.length === 1 && page > 1) {
+        dispatch(setPage(page - 1));
+      } else {
+        dispatch(setPage(page));
+      }
     } catch (err: any) {
-      toast.error(err.payload || err.message || 'Delete failed');
+      toast.error(err?.message || "Delete failed");
     }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Header />
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[calc(100vh-64px)] flex flex-col overflow-hidden">
         {/* TOP BAR */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center my-6 gap-4">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+                Admin Dashboard
+              </h1>
+
               <button
-                onClick={handleRefresh} // ✅ Changed to handleRefresh
+                onClick={handleRefresh}
                 className="text-gray-500 hover:text-blue-600 transition-colors p-2"
                 title="Refresh contacts"
                 disabled={contactsLoading || pageLoading}
               >
-                <FaSync className={`w-4 h-4 ${contactsLoading || pageLoading ? 'animate-spin' : ''}`} />
+                <FaSync
+                  className={`w-4 h-4 ${
+                    contactsLoading || pageLoading ? "animate-spin" : ""
+                  }`}
+                />
               </button>
             </div>
+
             <p className="text-sm text-gray-600 mt-1">
-              Total Contacts: <span className="font-semibold text-gray-800">{total}</span>
+              Total Contacts:{" "}
+              <span className="font-semibold text-gray-800">{total}</span>
               <span className="mx-2">•</span>
-              Page: <span className="font-semibold text-gray-800">{page} of {totalPages}</span>
+              Page:{" "}
+              <span className="font-semibold text-gray-800">
+                {page} of {totalPages}
+              </span>
               <span className="mx-2">•</span>
-              Showing <span className="font-semibold text-gray-800">{contacts.length}</span> contacts
+              Showing{" "}
+              <span className="font-semibold text-gray-800">
+                {contacts.length}
+              </span>{" "}
+              contacts
               {syncTimestamp && (
                 <span className="ml-2 text-xs text-gray-500">
                   (Updated: {new Date(syncTimestamp).toLocaleTimeString()})
@@ -248,6 +267,7 @@ const AdminContactsPage: React.FC = () => {
               )}
             </p>
           </div>
+
           <div className="relative w-full sm:w-64">
             <FaSearch className="absolute left-3 top-3 text-gray-400" />
             <Input
@@ -259,7 +279,7 @@ const AdminContactsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* MAIN CONTENT CARD */}
+        {/* MAIN CARD */}
         <div className="bg-white rounded-xl shadow-lg flex flex-col flex-1 overflow-hidden relative min-h-[400px] border border-gray-200">
           {/* LOADING OVERLAY */}
           {(contactsLoading || pageLoading) && (
@@ -270,15 +290,23 @@ const AdminContactsPage: React.FC = () => {
                   <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin absolute top-0 left-0"></div>
                 </div>
                 <p className="text-sm font-medium text-gray-700">
-                  {pageLoading ? `Loading page ${page}` : 'Loading contacts...'}
+                  {pageLoading ? `Loading page ${page}` : "Loading contacts..."}
                 </p>
               </div>
             </div>
           )}
 
-          {/* TABLE CONTAINER */}
-          <div className={`overflow-x-auto flex-1 transition-opacity duration-200 ${(contactsLoading || pageLoading) ? 'opacity-50' : 'opacity-100'}`}>
-            <ContactTable contacts={contacts} onEdit={handleEdit} onDelete={handleDelete} />
+          {/* TABLE */}
+          <div
+            className={`overflow-x-auto flex-1 transition-opacity duration-200 ${
+              contactsLoading || pageLoading ? "opacity-50" : "opacity-100"
+            }`}
+          >
+            <ContactTable
+              contacts={contacts}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+            />
           </div>
 
           {/* EMPTY STATE */}
@@ -286,11 +314,13 @@ const AdminContactsPage: React.FC = () => {
             <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500 space-y-5">
               <div className="text-6xl opacity-30">📭</div>
               <div className="text-center space-y-2">
-                <p className="text-xl font-semibold text-gray-700">No contacts found</p>
+                <p className="text-xl font-semibold text-gray-700">
+                  No contacts found
+                </p>
                 <p className="text-sm text-gray-400 max-w-md px-4">
-                  {debouncedSearch 
-                    ? `No results found for "${debouncedSearch}". Try a different search term.` 
-                    : 'Start by adding your first contact.'}
+                  {debouncedSearch
+                    ? `No results found for "${debouncedSearch}". Try a different search term.`
+                    : "No contacts available."}
                 </p>
               </div>
             </div>
@@ -304,19 +334,14 @@ const AdminContactsPage: React.FC = () => {
                   <span className="hidden sm:inline">Page</span>
                   <span className="font-semibold text-gray-800">{page}</span>
                   <span>of</span>
-                  <span className="font-semibold text-gray-800">{totalPages}</span>
-                  <span className="mx-2">•</span>
-                  <span className="text-gray-500">
-                    <span className="font-medium text-gray-800">{contacts.length}</span> of{' '}
-                    <span className="font-medium text-gray-800">{total}</span> contacts
+                  <span className="font-semibold text-gray-800">
+                    {totalPages}
                   </span>
                 </div>
 
-                {/* PAGINATION CONTROLS */}
                 <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-2">
-                  {/* FIRST PAGE */}
                   <button
-                    disabled={page === 1 || contactsLoading || pageLoading || isChangingPage}
+                    disabled={page === 1 || contactsLoading || pageLoading}
                     onClick={() => handlePageChange(1)}
                     className="p-2 border border-gray-300 rounded-lg text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white hover:border-gray-400 transition-all duration-200 flex items-center gap-1"
                   >
@@ -324,9 +349,8 @@ const AdminContactsPage: React.FC = () => {
                     <span className="hidden sm:inline">First</span>
                   </button>
 
-                  {/* PREVIOUS PAGE */}
                   <button
-                    disabled={page === 1 || contactsLoading || pageLoading || isChangingPage}
+                    disabled={page === 1 || contactsLoading || pageLoading}
                     onClick={() => handlePageChange(page - 1)}
                     className="p-2 border border-gray-300 rounded-lg text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white hover:border-gray-400 transition-all duration-200 flex items-center gap-1"
                   >
@@ -334,31 +358,34 @@ const AdminContactsPage: React.FC = () => {
                     <span className="hidden sm:inline">Prev</span>
                   </button>
 
-                  {/* PAGE NUMBERS */}
                   <div className="flex items-center gap-1">
-                    {generatePageNumbers().map((pageNum, index) => (
-                      pageNum === '...' ? (
-                        <span key={`ellipsis-${index}`} className="px-2 text-gray-400">...</span>
+                    {generatePageNumbers().map((pageNum, index) =>
+                      pageNum === "..." ? (
+                        <span
+                          key={`ellipsis-${index}`}
+                          className="px-2 text-gray-400"
+                        >
+                          ...
+                        </span>
                       ) : (
                         <button
                           key={pageNum}
                           onClick={() => handlePageChange(Number(pageNum))}
-                          disabled={contactsLoading || pageLoading || isChangingPage}
+                          disabled={contactsLoading || pageLoading}
                           className={`relative px-3 py-2 min-w-[40px] border rounded-lg text-sm font-medium transition-all duration-150 ${
                             page === pageNum
-                              ? 'bg-blue-600 text-white border-blue-600'
-                              : 'border-gray-300 text-gray-700 hover:bg-white hover:border-gray-400'
+                              ? "bg-blue-600 text-white border-blue-600"
+                              : "border-gray-300 text-gray-700 hover:bg-white hover:border-gray-400"
                           } disabled:opacity-40 disabled:cursor-not-allowed`}
                         >
                           {pageNum}
                         </button>
                       )
-                    ))}
+                    )}
                   </div>
 
-                  {/* NEXT PAGE */}
                   <button
-                    disabled={page === totalPages || contactsLoading || pageLoading || isChangingPage}
+                    disabled={page === totalPages || contactsLoading || pageLoading}
                     onClick={() => handlePageChange(page + 1)}
                     className="p-2 border border-gray-300 rounded-lg text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white hover:border-gray-400 transition-all duration-200 flex items-center gap-1"
                   >
@@ -366,9 +393,8 @@ const AdminContactsPage: React.FC = () => {
                     <FaChevronRight className="w-3 h-3" />
                   </button>
 
-                  {/* LAST PAGE */}
                   <button
-                    disabled={page === totalPages || contactsLoading || pageLoading || isChangingPage}
+                    disabled={page === totalPages || contactsLoading || pageLoading}
                     onClick={() => handlePageChange(totalPages)}
                     className="p-2 border border-gray-300 rounded-lg text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white hover:border-gray-400 transition-all duration-200 flex items-center gap-1"
                   >
@@ -377,24 +403,22 @@ const AdminContactsPage: React.FC = () => {
                   </button>
                 </div>
 
-                {/* PAGE JUMPER */}
                 <div className="flex items-center gap-2 text-sm">
                   <span className="text-gray-600">Go to:</span>
-                  <div className="relative">
-                    <select
-                      value={page}
-                      onChange={(e) => handlePageChange(Number(e.target.value))}
-                      disabled={contactsLoading || pageLoading || isChangingPage}
-                      className="border border-gray-300 rounded-lg px-3 py-1.5 pr-8 appearance-none bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 text-sm"
-                    >
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                        <option key={p} value={p}>Page {p}</option>
-                      ))}
-                    </select>
-                    <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                      <FaChevronRight className="w-3 h-3 rotate-90 text-gray-400" />
-                    </div>
-                  </div>
+                  <select
+                    value={page}
+                    onChange={(e) => handlePageChange(Number(e.target.value))}
+                    disabled={contactsLoading || pageLoading}
+                    className="border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 text-sm"
+                  >
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                      (p) => (
+                        <option key={p} value={p}>
+                          Page {p}
+                        </option>
+                      )
+                    )}
+                  </select>
                 </div>
               </div>
             </div>
@@ -403,7 +427,11 @@ const AdminContactsPage: React.FC = () => {
       </main>
 
       {/* EDIT MODAL */}
-      <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Edit Contact">
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title="Edit Contact"
+      >
         {selectedContact && (
           <ContactForm
             initialData={selectedContact}
@@ -415,25 +443,43 @@ const AdminContactsPage: React.FC = () => {
       </Modal>
 
       {/* DELETE MODAL */}
-      <Modal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} title="Confirm Delete">
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        title="Confirm Delete"
+      >
         <div className="space-y-4">
           <div className="bg-red-50 border border-red-100 rounded-lg p-4">
             <div className="flex items-start gap-3">
               <div className="text-red-500 text-xl mt-0.5">⚠️</div>
               <div>
-                <p className="text-red-700 font-semibold">Are you sure you want to delete this contact?</p>
+                <p className="text-red-700 font-semibold">
+                  Are you sure you want to delete this contact?
+                </p>
                 <p className="text-sm text-red-600 mt-2">
-                  This action <span className="font-bold">cannot be undone</span>. The contact{' '}
-                  <span className="font-bold">"{selectedContact?.name}"</span> will be permanently removed.
+                  This action <span className="font-bold">cannot be undone</span>.
+                  The contact{" "}
+                  <span className="font-bold">"{selectedContact?.name}"</span>{" "}
+                  will be permanently removed.
                 </p>
               </div>
             </div>
           </div>
+
           <div className="flex gap-3 justify-end">
-            <Button variant="secondary" onClick={() => setIsDeleteModalOpen(false)} disabled={contactsLoading}>
+            <Button
+              variant="secondary"
+              onClick={() => setIsDeleteModalOpen(false)}
+              disabled={contactsLoading}
+            >
               Cancel
             </Button>
-            <Button variant="danger" onClick={handleConfirmDelete} disabled={contactsLoading} isLoading={contactsLoading}>
+            <Button
+              variant="danger"
+              onClick={handleConfirmDelete}
+              disabled={contactsLoading}
+              isLoading={contactsLoading}
+            >
               Delete Contact
             </Button>
           </div>
