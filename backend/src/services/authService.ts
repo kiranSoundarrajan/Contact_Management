@@ -29,11 +29,12 @@ export const registerService = async (data: any): Promise<SafeUserData> => {
       throw new Error("User already exists with this email");
     }
 
-    // Don't hash here - let the model hook handle it
+    // Create user with hashed password
+    const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({
       username,
       email,
-      password: password, // Will be hashed by hook
+      password: hashedPassword,
       role: role.toLowerCase()
     });
 
@@ -53,14 +54,19 @@ export const registerService = async (data: any): Promise<SafeUserData> => {
 
 export const createAdminService = async () => {
   try {
-    const adminEmail = "kiransoundarrajan@gmail.com";
+    const adminEmail = process.env.ADMIN_EMAIL || "kiransoundarrajan@gmail.com";
+    const adminPassword = process.env.ADMIN_PASSWORD || "1234567890";
     
     const existingAdmin = await User.findOne({ where: { email: adminEmail } });
     
     if (existingAdmin) {
+      // Update admin password
+      const hashedPassword = await bcrypt.hash(adminPassword, 10);
+      await existingAdmin.update({ password: hashedPassword });
+      
       const adminPlain = existingAdmin.get({ plain: true }) as UserData;
       return { 
-        message: "Admin already exists",
+        message: "Admin password updated",
         admin: {
           id: adminPlain.id,
           username: adminPlain.username,
@@ -70,11 +76,12 @@ export const createAdminService = async () => {
       };
     }
     
-    // Password will be hashed by the hook
+    // Create admin with hashed password
+    const hashedPassword = await bcrypt.hash(adminPassword, 10);
     const admin = await User.create({
       username: "Nakkeeran S",
       email: adminEmail,
-      password: "1234567890", // Will be hashed by hook
+      password: hashedPassword,
       role: "admin"
     });
 
@@ -113,28 +120,16 @@ export const loginService = async (email: string, password: string): Promise<Saf
   console.log(`   Role: ${user.role}`);
   console.log(`   Password hash: ${user.password.substring(0, 30)}...`);
   
-  // Use the instance method
-  const isMatch = await user.checkPassword(password);
+  // FIXED: Use direct bcrypt comparison
+  const isMatch = await bcrypt.compare(password, user.password);
+  
+  console.log(`🔍 Password comparison:`);
+  console.log(`   Input: ${password}`);
+  console.log(`   Hash: ${user.password.substring(0, 30)}...`);
+  console.log(`   Match: ${isMatch}`);
   
   if (!isMatch) {
     console.log(`❌ Password mismatch`);
-    
-    // Extra debugging
-    console.log(`🔍 Extra debug info:`);
-    console.log(`   Hash type check:`);
-    console.log(`     Starts with $2b$: ${user.password.startsWith('$2b$')}`);
-    console.log(`     Starts with $2a$: ${user.password.startsWith('$2a$')}`);
-    console.log(`     Starts with $2y$: ${user.password.startsWith('$2y$')}`);
-    
-    // Test hash creation
-    try {
-      const testHash = await bcrypt.hash(password, 10);
-      console.log(`   Test hash (same password): ${testHash.substring(0, 30)}...`);
-      console.log(`   Hashes equal: ${testHash === user.password}`);
-    } catch (error) {
-      console.log(`   Could not create test hash`);
-    }
-    
     return null;
   }
   

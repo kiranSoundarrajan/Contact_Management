@@ -91,6 +91,105 @@ export const login = async (req: Request, res: Response) => {
   }
 };
 
+// NEW: Admin login endpoint
+export const adminLogin = async (req: Request, res: Response) => {
+  try {
+    console.log("\n🔍 ADMIN LOGIN ENDPOINT ================");
+    
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required"
+      });
+    }
+    
+    // Special admin login
+    const adminEmail = process.env.ADMIN_EMAIL || "kiransoundarrajan@gmail.com";
+    const adminPassword = process.env.ADMIN_PASSWORD || "1234567890";
+    
+    if (email === adminEmail && password === adminPassword) {
+      // Find or create admin user
+      let admin = await User.findOne({ where: { email: adminEmail } });
+      
+      if (!admin) {
+        // Create admin
+        const hashedPassword = await bcrypt.hash(adminPassword, 10);
+        admin = await User.create({
+          username: "Nakkeeran S",
+          email: adminEmail,
+          password: hashedPassword,
+          role: "admin"
+        });
+      }
+      
+      // Generate token
+      const token = jwt.sign(
+        { 
+          userId: admin.id, 
+          email: admin.email,
+          role: "admin" 
+        },
+        process.env.JWT_SECRET as string,
+        { expiresIn: "1d" }
+      );
+      
+      console.log("✅ ADMIN LOGIN SUCCESSFUL");
+      
+      res.json({
+        success: true,
+        token,
+        user: {
+          id: admin.id,
+          username: admin.username,
+          email: admin.email,
+          role: "admin",
+        },
+      });
+    } else {
+      // Try normal login
+      const user = await loginService(email, password);
+      
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          message: "Invalid email or password"
+        });
+      }
+      
+      const token = jwt.sign(
+        { 
+          userId: user.id, 
+          email: user.email,
+          role: user.role 
+        },
+        process.env.JWT_SECRET as string,
+        { expiresIn: "1d" }
+      );
+
+      res.json({
+        success: true,
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+        },
+      });
+    }
+    
+  } catch (error: any) {
+    console.error("❌ ADMIN LOGIN ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Login failed",
+      error: error.message
+    });
+  }
+};
+
 export const register = async (req: Request, res: Response) => {
   try {
     console.log("\n📝 REGISTER ATTEMPT ================");

@@ -1,20 +1,10 @@
 import Contact from "../models/Contact";
-import { Op, WhereOptions } from "sequelize";
-import { ContactInstance, ContactCreationAttributes, ContactAttributes } from "../types/sequelize";
+import { Op } from "sequelize";
 
 // ===============================
 // 🔹 Contact Cache
 // ===============================
-const contactCache = new Map<number, ContactInstance>();
-
-// ===============================
-// 🔹 Pagination Type
-// ===============================
-interface PaginatedContacts {
-  contacts: ContactInstance[];
-  total: number;
-  totalPages: number;
-}
+export const contactCache = new Map<string, any>();
 
 // ===============================
 // 🔹 DOB VALIDATION FUNCTION
@@ -32,16 +22,18 @@ export const validateDOB = (dobString: string) => {
 };
 
 // ===============================
-// 🔹 CREATE CONTACT SERVICE
+// 🔹 CREATE CONTACT SERVICE - FIXED
 // ===============================
 export const createContactService = async (
-  data: ContactCreationAttributes
-): Promise<ContactInstance> => {
+  data: any
+): Promise<any> => {
   try {
     const { name, email, place, dob, userId } = data;
+    
     if (!name || !email || !place || !dob) {
       throw new Error("Missing required fields: name, email, place, dob");
     }
+    
     if (!userId) throw new Error("User ID is required to create a contact");
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -49,10 +41,17 @@ export const createContactService = async (
 
     const dobValidation = validateDOB(dob.toString());
     if (!dobValidation.isValid) throw new Error(dobValidation.error);
+    
     data.dob = new Date(dob);
 
-    const contact = await Contact.create(data) as ContactInstance;
-    contactCache.set(contact.id, contact);
+    const contact = await Contact.create(data);
+    
+    // Clear user's contact cache
+    const cacheKey = `user_${userId}_contacts`;
+    contactCache.delete(cacheKey);
+    
+    // Also clear admin cache if exists
+    contactCache.delete('admin_all_contacts');
 
     return contact;
   } catch (error: any) {
@@ -62,19 +61,15 @@ export const createContactService = async (
 };
 
 // ===============================
-// 🔹 GET CONTACT BY ID
+// 🔹 GET CONTACT BY ID SERVICE
 // ===============================
 export const getContactByIdService = async (
   contactId: number
-): Promise<ContactInstance> => {
+): Promise<any> => {
   try {
-    const cached = contactCache.get(contactId);
-    if (cached) return cached;
-
-    const contact = await Contact.findByPk(contactId) as ContactInstance | null;
+    const contact = await Contact.findByPk(contactId);
     if (!contact) throw new Error("Contact not found");
 
-    contactCache.set(contactId, contact);
     return contact;
   } catch (error: any) {
     console.error("❌ Get contact by ID error:", error.message);
@@ -87,10 +82,10 @@ export const getContactByIdService = async (
 // ===============================
 export const updateContactService = async (
   contactId: number,
-  data: Partial<ContactCreationAttributes>
-): Promise<ContactInstance> => {
+  data: Partial<any>
+): Promise<any> => {
   try {
-    const contact = await Contact.findByPk(contactId) as ContactInstance | null;
+    const contact = await Contact.findByPk(contactId);
     if (!contact) throw new Error("Contact not found");
 
     if (data.email) {
@@ -104,8 +99,11 @@ export const updateContactService = async (
       data.dob = new Date(data.dob);
     }
 
-    const updated = await contact.update(data) as ContactInstance;
-    contactCache.set(contactId, updated);
+    const updated = await contact.update(data);
+    
+    // Clear cache
+    contactCache.clear();
+    
     return updated;
   } catch (error: any) {
     console.error("❌ Update contact error:", error.message);
@@ -118,11 +116,14 @@ export const updateContactService = async (
 // ===============================
 export const deleteContactService = async (contactId: number): Promise<boolean> => {
   try {
-    const contact = await Contact.findByPk(contactId) as ContactInstance | null;
+    const contact = await Contact.findByPk(contactId);
     if (!contact) throw new Error("Contact not found");
 
     await contact.destroy();
-    contactCache.delete(contactId);
+    
+    // Clear cache
+    contactCache.clear();
+    
     return true;
   } catch (error: any) {
     console.error("❌ Delete contact error:", error.message);
@@ -141,11 +142,55 @@ export const getContactsService = async (
 ) => {
   const offset = (page - 1) * limit;
   const where: any = {};
-  if (userId) where.userId = userId;
-  if (search) where[Op.or] = [{ name: { [Op.like]: `%${search}%` } }, { email: { [Op.like]: `%${search}%` } }];
+  
+  if (userId) {
+    where.userId = userId;
+    // Check cache for user contacts
+    const cacheKey = `user_${userId}_page_${page}_search_${search}`;
+    const cached = contactCache.get(cacheKey);
+    if (cached) {
+      console.log(`✅ Returning cached user contacts for page ${page}`);
+      return cached;
+    }
+  } else {
+    // Check cache for admin contacts
+    const cacheKey = `admin_page_${page}_search_${search}`;
+    const cached = contactCache.get(cacheKey);
+    if (cached) {
+      console.log(`✅ Returning cached admin contacts for page ${page}`);
+      return cached;
+    }
+  }
+  
+  if (search) {
+    where[Op.or] = [
+      { name: { [Op.like]: `%${search}%` } },
+      { email: { [Op.like]: `%${search}%` } },
+      { place: { [Op.like]: `%${search}%` } }
+    ];
+  }
 
   const total = await Contact.count({ where });
-  const contacts = await Contact.findAll({ where, limit, offset, order: [["id", "DESC"]] });
+  const contacts = await Contact.findAll({ 
+    where, 
+    limit, 
+    offset, 
+    order: [["id", "DESC"]] 
+  });
 
-  return { contacts, total, totalPages: Math.ceil(total / limit) };
+  const result = { 
+    contacts, 
+    total, 
+    totalPages: Math.ceil(total / limit),
+    currentPage: page
+  };
+  
+  // Cache the result
+  if (userId) {
+    contactCache.set(`user_${userId}_page_${page}_search_${search}`, result);
+  } else {
+    contactCache.set(`admin_page_${page}_search_${search}`, result);
+  }
+  
+  return result;
 };

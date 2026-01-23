@@ -8,13 +8,17 @@ import {
   validateDOB
 } from "../services/contactService";
 
+// Import the contactCache from contactService
+import { contactCache } from "../services/contactService";
+
 // ===============================
-// 🔹 CREATE CONTACT (User)
+// 🔹 CREATE CONTACT (User) - FIXED
 // ===============================
 export const createContact = async (req: Request, res: Response) => {
   try {
-    console.log("🔍 Request user object:", (req as any).user);
-    console.log("🔍 Request body:", req.body);
+    console.log("\n🔍 CREATE CONTACT REQUEST ================");
+    console.log("Request user object:", (req as any).user);
+    console.log("Request body:", req.body);
 
     const userId = (req as any).user?.userId;
 
@@ -47,10 +51,15 @@ export const createContact = async (req: Request, res: Response) => {
 
     const contact = await createContactService(contactData);
 
+    // Clear cache for this user
+    const cacheKey = `user_${userId}_contacts`;
+    contactCache.delete(cacheKey);
+
     res.status(201).json({
       success: true,
       message: "Contact created successfully",
-      contact
+      contact,
+      data: contact // Add this for frontend compatibility
     });
   } catch (error: any) {
     console.error("❌ Create contact error:", error);
@@ -319,5 +328,3 @@ export const getContactById = async (req: Request, res: Response) => {
     });
   }
 };
-
-

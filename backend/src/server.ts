@@ -1,66 +1,34 @@
-﻿// backend/src/server.ts - EMERGENCY FIX
-import express, { Application, Request, Response } from "express";
+﻿import express, { Application, Request, Response } from "express";
 import dotenv from "dotenv";
 import cors from "cors";
+import sequelize from "./config/db";
+import User from "./models/User";
 
 dotenv.config();
 
-console.log("🚀 EMERGENCY SERVER STARTING");
+console.log("🚀 ULTIMATE SERVER STARTING");
 
 const app: Application = express();
 const PORT: number = parseInt(process.env.PORT || "5000", 10);
 
-/* ==================== 1. MANUAL BODY PARSER ==================== */
-app.use((req: Request, res: Response, next: any) => {
-  console.log(`\n📨 ${new Date().toISOString()} - ${req.method} ${req.url}`);
-  
-  if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
-    let data = '';
-    
-    req.on('data', (chunk) => {
-      data += chunk.toString();
-    });
-    
-    req.on('end', () => {
-      console.log('📝 Raw data:', data);
-      
-      // ALWAYS set body, NEVER throw error
-      if (!data.trim()) {
-        req.body = {};
-      } else {
-        try {
-          req.body = JSON.parse(data);
-          console.log('✅ JSON parsed:', req.body);
-        } catch (error) {
-          console.log('⚠️ JSON parse failed -> empty object');
-          req.body = {};
-        }
-      }
-      
-      next();
-    });
-    
-    req.on('error', () => {
-      req.body = {};
-      next();
-    });
-  } else {
-    next();
-  }
-});
+/* ==================== 1. ULTIMATE MANUAL BODY PARSER ==================== */
+app.use(express.json());
 
 /* ==================== 2. CORS ==================== */
 app.use(cors({
   origin: ["https://kiran-contact-management.netlify.app", "http://localhost:3000"],
-  credentials: true
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
 }));
+
+app.options("*", cors());
 
 /* ==================== 3. TEST ENDPOINTS ==================== */
 app.get("/", (req: Request, res: Response) => {
   res.json({ 
     success: true, 
-    message: "Emergency Server",
-    version: "1.0.0",
+    message: "Contact Management API",
+    version: "3.0.0",
     timestamp: new Date().toISOString()
   });
 });
@@ -68,39 +36,47 @@ app.get("/", (req: Request, res: Response) => {
 app.get("/health", (req: Request, res: Response) => {
   res.json({ 
     status: "OK", 
-    server: "Emergency",
-    time: new Date().toISOString()
+    service: "Contact Management",
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV
   });
 });
 
-// THIS ENDPOINT MUST WORK
-app.post("/api/emergency-test", (req: Request, res: Response) => {
-  console.log("✅ EMERGENCY TEST CALLED:", req.body);
+// THIS WILL 100% WORK
+app.post("/api/ultimate-test", (req: Request, res: Response) => {
+  console.log("✅ ULTIMATE TEST CALLED");
+  console.log("Request body:", req.body);
+  console.log("Body type:", typeof req.body);
+  console.log("Body keys:", Object.keys(req.body));
+  
   res.json({
     success: true,
-    message: "Emergency endpoint works!",
+    message: "Ultimate test works!",
     body: req.body,
+    bodyType: typeof req.body,
     timestamp: new Date().toISOString()
   });
 });
 
 // SIMPLE LOGIN TEST
-app.post("/api/auth/login-test", (req: Request, res: Response) => {
-  console.log("✅ EMERGENCY LOGIN:", req.body);
+app.post("/api/auth/simple-login", (req: Request, res: Response) => {
+  console.log("✅ SIMPLE LOGIN CALLED");
+  console.log("Login body:", req.body);
   
   const { email, password } = req.body;
   
   if (!email || !password) {
     return res.status(400).json({
       success: false,
-      message: "Email and password required"
+      message: "Email and password are required",
+      received: req.body
     });
   }
   
   res.json({
     success: true,
-    message: "Emergency login works",
-    token: "emergency-jwt-token",
+    message: "Simple login successful",
+    token: "simple-jwt-token",
     user: {
       id: 1,
       email: email,
@@ -109,21 +85,65 @@ app.post("/api/auth/login-test", (req: Request, res: Response) => {
   });
 });
 
-/* ==================== 4. IMPORT ROUTES ==================== */
+/* ==================== 4. YOUR ROUTES ==================== */
 import authRoutes from "./routes/authRoutes";
 import contactRoutes from "./routes/contactRoutes";
 
 app.use("/api/auth", authRoutes);
 app.use("/api/contacts", contactRoutes);
 
-/* ==================== 5. START SERVER ==================== */
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`\n🚀 EMERGENCY SERVER STARTED`);
+/* ==================== 5. 404 HANDLER ==================== */
+app.use((req: Request, res: Response) => {
+  res.status(404).json({
+    success: false,
+    message: `Route ${req.method} ${req.url} not found`
+  });
+});
+
+/* ==================== 6. DATABASE CONNECTION ==================== */
+const connectDB = async () => {
+  try {
+    await sequelize.authenticate();
+    console.log("✅ Database connected");
+    
+    await sequelize.sync({ alter: false });
+    console.log("✅ Database synced");
+    
+    // Create admin if not exists
+    const adminEmail = process.env.ADMIN_EMAIL || "kiransoundarrajan@gmail.com";
+    const adminPassword = process.env.ADMIN_PASSWORD || "1234567890";
+    
+    const existingAdmin = await User.findOne({ where: { email: adminEmail } });
+    if (!existingAdmin) {
+      await User.create({
+        username: "Nakkeeran S",
+        email: adminEmail,
+        password: adminPassword,
+        role: "admin"
+      });
+      console.log("✅ Admin user created");
+    } else {
+      console.log("✅ Admin user exists");
+      
+      // Update admin password if needed
+      await existingAdmin.update({ password: adminPassword });
+      console.log("✅ Admin password updated");
+    }
+  } catch (error) {
+    console.error("❌ Database error:", error);
+  }
+};
+
+/* ==================== 7. START SERVER ==================== */
+app.listen(PORT, "0.0.0.0", async () => {
+  console.log(`\n🚀 ULTIMATE SERVER STARTED`);
   console.log(`📍 Port: ${PORT}`);
   console.log(`🌐 URL: https://contact-management-5ct3.onrender.com`);
-  console.log(`🔧 Test: POST /api/emergency-test`);
-  console.log(`🔑 Login: POST /api/auth/login-test`);
+  console.log(`🔧 Test: POST /api/ultimate-test`);
+  console.log(`🔑 Login: POST /api/auth/simple-login`);
   console.log(`\n✅ Ready for testing!`);
+  
+  await connectDB();
 });
 
 export default app;
