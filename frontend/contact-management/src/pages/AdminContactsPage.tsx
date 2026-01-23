@@ -3,13 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import {
-  fetchAllContacts,
-  fetchUserContacts,
+  fetchUserContacts, // ✅ Use fetchUserContacts instead of fetchAllContacts
   updateContact,
   deleteContact,
   startPageLoading,
   stopPageLoading,
-  syncContactsFromCache,
   setPage
 } from '../store/slices/contactSlice';
 import Header from '../components/common/Header';
@@ -66,25 +64,15 @@ const AdminContactsPage: React.FC = () => {
     
     const loadContacts = async () => {
       try {
-        await dispatch(fetchAllContacts({ 
+        // ✅ Use fetchUserContacts instead of fetchAllContacts
+        await dispatch(fetchUserContacts({ 
           page, 
           limit: 15,
           search: debouncedSearch
         }));
       } catch (error: any) {
         console.error('Admin API failed:', error);
-        
-        // Fallback to user contacts API if admin API fails
-        if (error.message?.includes('Access denied') || error.message?.includes('403') || error.payload?.includes('Access denied')) {
-          toast.error('Admin API access issue. Loading user contacts instead...');
-          await dispatch(fetchUserContacts({ 
-            page, 
-            limit: 15,
-            search: debouncedSearch
-          }));
-        } else {
-          toast.error('Failed to load contacts');
-        }
+        toast.error('Failed to load contacts');
       }
     };
     
@@ -112,25 +100,15 @@ const AdminContactsPage: React.FC = () => {
     await new Promise(resolve => setTimeout(resolve, 100));
     
     try {
-      await dispatch(fetchAllContacts({ 
+      // ✅ Use fetchUserContacts instead of fetchAllContacts
+      await dispatch(fetchUserContacts({ 
         page: newPage, 
         limit: 15,
         search: debouncedSearch
       }));
     } catch (error: any) {
       console.error('Page change error:', error);
-      
-      // Fallback to user contacts API
-      if (error.message?.includes('Access denied') || error.message?.includes('403') || error.payload?.includes('Access denied')) {
-        await dispatch(fetchUserContacts({ 
-          page: newPage, 
-          limit: 15,
-          search: debouncedSearch 
-        }));
-      } else {
-        toast.error('Failed to load contacts');
-      }
-      
+      toast.error('Failed to load contacts');
       dispatch(stopPageLoading());
     } finally {
       setTimeout(() => {
@@ -174,14 +152,22 @@ const AdminContactsPage: React.FC = () => {
     return pages;
   };
 
-  const handleManualSync = useCallback(async () => {
+  // ✅ Remove handleManualSync function since syncContactsFromCache doesn't exist
+  // Or create a simple refresh function
+  const handleRefresh = useCallback(async () => {
     try {
-      await dispatch(syncContactsFromCache());
-      toast.success('Contacts synced successfully!');
+      dispatch(startPageLoading());
+      await dispatch(fetchUserContacts({ 
+        page: currentPage, 
+        limit: 15,
+        search: debouncedSearch,
+        forceRefresh: true 
+      }));
+      toast.success('Contacts refreshed successfully!');
     } catch (err: any) {
-      toast.error(err.payload || 'Failed to sync contacts');
+      toast.error('Failed to refresh contacts');
     }
-  }, [dispatch]);
+  }, [dispatch, currentPage, debouncedSearch]);
 
   const handleEdit = (contact: Contact) => {
     setSelectedContact(contact);
@@ -202,7 +188,7 @@ const AdminContactsPage: React.FC = () => {
       setSelectedContact(null);
       
       // Refresh contacts after update
-      await dispatch(fetchAllContacts({ 
+      await dispatch(fetchUserContacts({ 
         page, 
         limit: 15,
         search: debouncedSearch
@@ -221,7 +207,7 @@ const AdminContactsPage: React.FC = () => {
       setSelectedContact(null);
       
       // Refresh contacts after delete
-      await dispatch(fetchAllContacts({ 
+      await dispatch(fetchUserContacts({ 
         page, 
         limit: 15,
         search: debouncedSearch
@@ -241,9 +227,9 @@ const AdminContactsPage: React.FC = () => {
             <div className="flex items-center gap-3">
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Admin Dashboard</h1>
               <button
-                onClick={handleManualSync}
+                onClick={handleRefresh} // ✅ Changed to handleRefresh
                 className="text-gray-500 hover:text-blue-600 transition-colors p-2"
-                title="Sync all contacts"
+                title="Refresh contacts"
                 disabled={contactsLoading || pageLoading}
               >
                 <FaSync className={`w-4 h-4 ${contactsLoading || pageLoading ? 'animate-spin' : ''}`} />
@@ -257,7 +243,7 @@ const AdminContactsPage: React.FC = () => {
               Showing <span className="font-semibold text-gray-800">{contacts.length}</span> contacts
               {syncTimestamp && (
                 <span className="ml-2 text-xs text-gray-500">
-                  (Synced: {new Date(syncTimestamp).toLocaleTimeString()})
+                  (Updated: {new Date(syncTimestamp).toLocaleTimeString()})
                 </span>
               )}
             </p>
