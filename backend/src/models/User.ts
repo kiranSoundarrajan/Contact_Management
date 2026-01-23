@@ -1,5 +1,7 @@
+// models/User.ts - Verify hooks are correct
 import { DataTypes, Model, Optional } from "sequelize";
 import sequelize from "../config/db";
+import bcrypt from "bcryptjs"; // ✅ Make sure this import exists
 
 interface UserAttributes {
   id: number;
@@ -77,14 +79,30 @@ User.init(
     timestamps: true,
     hooks: {
       beforeCreate: async (user: User) => {
-        const bcrypt = require("bcryptjs");
+        console.log(`🔐 User model beforeCreate hook triggered`);
+        console.log(`   Original password: "${user.password}"`);
+        console.log(`   Password length: ${user.password.length}`);
+        
+        // Hash the password
         user.password = await bcrypt.hash(user.password, 10);
+        
+        console.log(`   Hashed password: ${user.password.substring(0, 30)}...`);
+        console.log(`   Hash length: ${user.password.length}`);
+        
+        // Normalize role
         user.role = user.role.toLowerCase() as "user" | "admin";
+        console.log(`   Role set to: ${user.role}`);
       },
       beforeUpdate: async (user: User) => {
+        console.log(`🔐 User model beforeUpdate hook triggered`);
+        
         if (user.changed("password")) {
-          const bcrypt = require("bcryptjs");
+          console.log(`   Password changed, hashing...`);
+          console.log(`   New password: "${user.password}"`);
+          
           user.password = await bcrypt.hash(user.password, 10);
+          
+          console.log(`   New hash: ${user.password.substring(0, 30)}...`);
         }
         if (user.changed("role")) {
           user.role = user.role.toLowerCase() as "user" | "admin";

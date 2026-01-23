@@ -400,3 +400,81 @@ export const testJsonParse = async (req: Request, res: Response) => {
     });
   }
 };
+
+// Add to authController.ts
+export const debugAuthFlow = async (req: Request, res: Response) => {
+  try {
+    console.log("\n🔧 DEBUG AUTH FLOW ================");
+    
+    const { username, email, password } = req.body;
+    
+    if (!username || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Username, email and password required"
+      });
+    }
+    
+    console.log(`Test data:`);
+    console.log(`  Username: "${username}"`);
+    console.log(`  Email: "${email}"`);
+    console.log(`  Password: "${password}"`);
+    
+    // Step 1: Check if user exists
+    const existingUser = await User.findOne({ where: { email } });
+    console.log(`\n1. Check existing user:`);
+    console.log(`   Exists: ${!!existingUser}`);
+    if (existingUser) {
+      console.log(`   User ID: ${existingUser.id}`);
+      console.log(`   Password hash: ${existingUser.password.substring(0, 30)}...`);
+    }
+    
+    // Step 2: Create user if doesn't exist
+    let user;
+    if (!existingUser) {
+      console.log(`\n2. Creating new user...`);
+      user = await User.create({
+        username,
+        email,
+        password,
+        role: "user"
+      });
+      console.log(`   User created with ID: ${user.id}`);
+      console.log(`   Generated hash: ${user.password.substring(0, 30)}...`);
+    } else {
+      user = existingUser;
+    }
+    
+    // Step 3: Try to login
+    console.log(`\n3. Testing login...`);
+    const loginResult = await loginService(email, password);
+    console.log(`   Login successful: ${!!loginResult}`);
+    
+    // Step 4: Manual password check
+    console.log(`\n4. Manual password verification:`);
+    const manualCheck = await bcrypt.compare(password, user.password);
+    console.log(`   bcrypt.compare result: ${manualCheck}`);
+    
+    res.json({
+      success: true,
+      userExists: !!existingUser,
+      userCreated: !existingUser,
+      loginSuccessful: !!loginResult,
+      manualCheck: manualCheck,
+      user: user ? {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        passwordHashPrefix: user.password.substring(0, 30) + "...",
+        hashLength: user.password.length
+      } : null
+    });
+    
+  } catch (error: any) {
+    console.error("❌ DEBUG AUTH FLOW ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};

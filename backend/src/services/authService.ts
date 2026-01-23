@@ -83,10 +83,12 @@ export const registerService = async (data: any): Promise<SafeUserData> => {
   }
 };
 
+// Update your loginService in authService.ts
 export const loginService = async (email: string, password: string): Promise<SafeUserData | null> => {
   try {
     console.log(`\n🔍 LOGIN SERVICE START ================`);
-    console.log(`Email: ${email}`);
+    console.log(`Email received: "${email}"`);
+    console.log(`Password received: "${password}"`);
     console.log(`Password length: ${password.length}`);
 
     // Find user by email (case-insensitive)
@@ -97,25 +99,65 @@ export const loginService = async (email: string, password: string): Promise<Saf
     });
     
     if (!user) {
-      console.log(`❌ User not found: ${email}`);
+      console.log(`❌ User not found in DB: ${email}`);
+      
+      // Let's check what users actually exist
+      const allUsers = await User.findAll({
+        attributes: ['id', 'email', 'username']
+      });
+      console.log(`📊 All users in DB (${allUsers.length}):`);
+      allUsers.forEach(u => console.log(`  - ${u.id}: ${u.email} (${u.username})`));
+      
       return null;
     }
     
     console.log(`✅ User found in DB:`);
     console.log(`   ID: ${user.id}`);
-    console.log(`   Username: ${user.username}`);
-    console.log(`   Role: ${user.role}`);
-    console.log(`   Password hash: ${user.password.substring(0, 20)}...`);
+    console.log(`   Username: "${user.username}"`);
+    console.log(`   Email: "${user.email}"`);
+    console.log(`   Role: "${user.role}"`);
+    console.log(`   Password hash: ${user.password.substring(0, 60)}...`);
+    console.log(`   Hash length: ${user.password.length}`);
     
-    // Verify password - this is CORRECT
+    // Check if it looks like a bcrypt hash
+    const hashPrefix = user.password.substring(0, 7);
+    console.log(`   Hash prefix: "${hashPrefix}"`);
+    
+    // Bcrypt hashes should start with $2a$, $2b$, or $2y$
+    if (!hashPrefix.startsWith('$2')) {
+      console.log(`❌ WARNING: Password hash doesn't look like bcrypt!`);
+      console.log(`   This might mean the model hook isn't hashing passwords`);
+    }
+    
+    // Debug: Let's see what bcrypt.compare does
+    console.log(`\n🔑 Attempting bcrypt.compare...`);
+    console.log(`   Provided password: "${password}"`);
+    console.log(`   Stored hash: ${user.password.substring(0, 30)}...`);
+    
     const isMatch = await bcrypt.compare(password, user.password);
+    
+    console.log(`   bcrypt.compare result: ${isMatch}`);
     
     if (!isMatch) {
       console.log(`❌ Password mismatch for user: ${email}`);
+      
+      // Try to debug by creating a test hash
+      console.log(`\n🔧 Debug: Creating test hash of provided password...`);
+      const testHash = await bcrypt.hash(password, 10);
+      console.log(`   Test hash: ${testHash.substring(0, 30)}...`);
+      console.log(`   Stored hash: ${user.password.substring(0, 30)}...`);
+      
+      // Check if they start the same
+      console.log(`   Same prefix? ${testHash.substring(0, 7) === user.password.substring(0, 7)}`);
+      
+      // Try direct comparison (should fail if hashed differently)
+      const directCompare = testHash === user.password;
+      console.log(`   Direct string comparison: ${directCompare}`);
+      
       return null;
     }
     
-    console.log(`✅ Password verified successfully`);
+    console.log(`✅ Password verified successfully!`);
     
     return {
       id: user.id,

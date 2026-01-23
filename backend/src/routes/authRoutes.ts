@@ -8,6 +8,7 @@ import {
   checkUser,
   testEndpoint,
   testJsonParse,
+  debugAuthFlow,
 } from "../controllers/authController";
 
 const router = Router();
@@ -22,6 +23,8 @@ router.post("/logout", logout);
 router.post("/reset-password", resetPassword);
 router.post("/check-user", checkUser);
 router.post("/test-json", testJsonParse);
+router.post("/debug-auth-flow", debugAuthFlow);
+
 
 // If you have adminLogin function, add it
 // router.post("/admin-login", adminLogin);
