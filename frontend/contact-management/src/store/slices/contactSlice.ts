@@ -26,10 +26,14 @@ const initialState: ContactState = {
 };
 
 /* =====================================================
-   🔹 FETCH USER CONTACTS - FIXED
+   🔹 FETCH USER CONTACTS - UPDATED
 ===================================================== */
 export const fetchUserContacts = createAsyncThunk<
-  ContactsResponse & { forceRefresh?: boolean },
+  ContactsResponse & { 
+    forceRefresh?: boolean;
+    currentPage?: number;
+    search?: string; // Add search to return type
+  },
   {
     page?: number;
     limit?: number;
@@ -45,6 +49,7 @@ export const fetchUserContacts = createAsyncThunk<
         page = 1,
         limit = 15,
         search = '',
+        forceRefresh = false,
       } = params;
 
       console.log(`📡 Fetching user contacts - Page: ${page}, Search: "${search}"`);
@@ -54,7 +59,6 @@ export const fetchUserContacts = createAsyncThunk<
       
       let response: ContactsResponse;
       
-      // Admin uses getAllContacts, regular users use getUserContacts
       if (userRole === 'admin') {
         response = await contactApi.getAllContacts(page, limit, search);
       } else {
@@ -65,7 +69,9 @@ export const fetchUserContacts = createAsyncThunk<
       
       return {
         ...response,
-        currentPage: page
+        currentPage: page,
+        search,        // Include search in return
+        forceRefresh,  // Include forceRefresh in return
       };
     } catch (error: any) {
       console.error('❌ Fetch user contacts error:', error.response?.data || error.message);
@@ -77,7 +83,7 @@ export const fetchUserContacts = createAsyncThunk<
 );
 
 /* =====================================================
-   🔹 CREATE CONTACT - FIXED FOR IMMEDIATE UI UPDATE
+   🔹 CREATE CONTACT
 ===================================================== */
 export const createContact = createAsyncThunk<
   { success: boolean; contact: Contact },
@@ -185,7 +191,6 @@ const contactSlice = createSlice({
     setSyncTimestamp: (state, action: PayloadAction<number>) => {
       state.syncTimestamp = action.payload;
     },
-    // 🚨 CRITICAL: Add contact immediately to state
     addContactToState: (state, action: PayloadAction<Contact>) => {
       state.contacts = [action.payload, ...state.contacts];
       state.total += 1;
@@ -205,7 +210,13 @@ const contactSlice = createSlice({
         state.contacts = action.payload.contacts;
         state.total = action.payload.total;
         state.totalPages = action.payload.totalPages;
-        state.currentPage = action.payload.currentPage || 1;
+        
+        // ✅ ALWAYS update currentPage from payload
+        // This keeps UI in sync with data
+        if (action.payload.currentPage) {
+          state.currentPage = action.payload.currentPage;
+        }
+        
         state.lastFetchedPage = action.payload.currentPage;
         
         // Cache first page
