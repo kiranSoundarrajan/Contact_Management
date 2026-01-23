@@ -1,14 +1,6 @@
 import bcrypt from "bcryptjs";
 import User from "../models/User";
 
-interface UserData {
-  id: number;
-  username: string;
-  email: string;
-  password: string;
-  role: string;
-}
-
 interface SafeUserData {
   id: number;
   username: string;
@@ -18,118 +10,209 @@ interface SafeUserData {
 
 export const registerService = async (data: any): Promise<SafeUserData> => {
   try {
+    console.log("📝 REGISTER SERVICE START ================");
+    console.log("Data received:", { 
+      username: data.username, 
+      email: data.email, 
+      role: data.role 
+    });
+
     const { username, email, password, role = "user" } = data;
 
-    if (!password || password.length < 6) {
+    // Validate input
+    if (!username || !email || !password) {
+      throw new Error("All fields are required");
+    }
+
+    if (password.length < 6) {
       throw new Error("Password must be at least 6 characters");
     }
 
-    const existingUser = await User.findOne({ where: { email } });
+    if (username.length < 3) {
+      throw new Error("Username must be at least 3 characters");
+    }
+
+    // Check if user already exists (case-insensitive)
+    const existingUser = await User.findOne({ 
+      where: { email: email.toLowerCase().trim() } 
+    });
     if (existingUser) {
+      console.log(`❌ User already exists: ${email}`);
       throw new Error("User already exists with this email");
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    console.log(`✅ No duplicate found, creating user...`);
+
+    // Create user - password will be hashed by model hook (10 rounds)
     const user = await User.create({
-      username,
-      email,
-      password: hashedPassword,
+      username: username.trim(),
+      email: email.toLowerCase().trim(),
+      password: password, // ✅ Plain password - model hook will hash it
       role: role.toLowerCase()
     });
 
-    const userPlain = user.get({ plain: true }) as UserData;
-    
+    console.log(`✅ User created in DB with ID: ${user.id}`);
+    console.log(`User details:`, {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      passwordHash: user.password.substring(0, 20) + "..."
+    });
+
     return {
-      id: userPlain.id,
-      username: userPlain.username,
-      email: userPlain.email,
-      role: userPlain.role
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role
     };
   } catch (error: any) {
-    console.error("REGISTER SERVICE ERROR:", error.message);
+    console.error("❌ REGISTER SERVICE ERROR:", error.message);
+    
+    // Handle Sequelize unique constraint errors
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      if (error.errors[0].path === 'username') {
+        throw new Error("Username already taken");
+      }
+      if (error.errors[0].path === 'email') {
+        throw new Error("Email already registered");
+      }
+    }
+    
     throw error;
   }
 };
 
 export const loginService = async (email: string, password: string): Promise<SafeUserData | null> => {
-  console.log(`\n🔍 LOGIN SERVICE START ================`);
-  console.log(`Email: ${email}`);
-  
-  const user = await User.findOne({ where: { email } });
-  
-  if (!user) {
-    console.log(`❌ User not found: ${email}`);
+  try {
+    console.log(`\n🔍 LOGIN SERVICE START ================`);
+    console.log(`Email: ${email}`);
+    console.log(`Password length: ${password.length}`);
+
+    // Find user by email (case-insensitive)
+    const user = await User.findOne({ 
+      where: { 
+        email: email.toLowerCase().trim() 
+      } 
+    });
+    
+    if (!user) {
+      console.log(`❌ User not found: ${email}`);
+      return null;
+    }
+    
+    console.log(`✅ User found in DB:`);
+    console.log(`   ID: ${user.id}`);
+    console.log(`   Username: ${user.username}`);
+    console.log(`   Role: ${user.role}`);
+    console.log(`   Password hash: ${user.password.substring(0, 20)}...`);
+    
+    // Verify password - this is CORRECT
+    const isMatch = await bcrypt.compare(password, user.password);
+    
+    if (!isMatch) {
+      console.log(`❌ Password mismatch for user: ${email}`);
+      return null;
+    }
+    
+    console.log(`✅ Password verified successfully`);
+    
+    return {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role
+    };
+  } catch (error: any) {
+    console.error(`❌ LOGIN SERVICE ERROR: ${error.message}`);
+    console.error(`Stack: ${error.stack}`);
     return null;
   }
-  
-  console.log(`✅ User found in DB:`);
-  console.log(`   ID: ${user.id}`);
-  console.log(`   Username: ${user.username}`);
-  console.log(`   Role: ${user.role}`);
-  
-  const isMatch = await bcrypt.compare(password, user.password);
-  
-  if (!isMatch) {
-    console.log(`❌ Password mismatch`);
-    return null;
-  }
-  
-  console.log(`✅ Password verified successfully`);
-  
-  return {
-    id: user.id,
-    username: user.username,
-    email: user.email,
-    role: user.role
-  };
 };
 
-// Add missing createAdminService
 export const createAdminService = async () => {
   try {
+    console.log("\n👑 CREATE ADMIN SERVICE START");
+    
     const adminEmail = process.env.ADMIN_EMAIL || "kiransoundarrajan@gmail.com";
     const adminPassword = process.env.ADMIN_PASSWORD || "1234567890";
     
-    const existingAdmin = await User.findOne({ where: { email: adminEmail } });
+    console.log(`Admin email: ${adminEmail}`);
+    console.log(`Admin password length: ${adminPassword.length}`);
+    
+    // Check if admin already exists
+    const existingAdmin = await User.findOne({ 
+      where: { email: adminEmail.toLowerCase() } 
+    });
     
     if (existingAdmin) {
-      // Update admin password
-      const hashedPassword = await bcrypt.hash(adminPassword, 10);
-      await existingAdmin.update({ password: hashedPassword });
+      console.log("✅ Admin already exists, updating...");
       
-      const adminPlain = existingAdmin.get({ plain: true }) as UserData;
+      // Update admin password - model hook will hash it
+      await existingAdmin.update({ 
+        password: adminPassword, // ✅ Plain password - model hook will hash it
+        role: "admin" 
+      });
+      
+      console.log(`✅ Admin password updated for ID: ${existingAdmin.id}`);
+      
       return { 
-        message: "Admin password updated",
+        message: "Admin credentials updated",
         admin: {
-          id: adminPlain.id,
-          username: adminPlain.username,
-          email: adminPlain.email,
-          role: adminPlain.role
+          id: existingAdmin.id,
+          username: existingAdmin.username,
+          email: existingAdmin.email,
+          role: existingAdmin.role
         }
       };
     }
     
-    // Create admin with hashed password
-    const hashedPassword = await bcrypt.hash(adminPassword, 10);
+    // Create admin - password will be hashed by model hook
     const admin = await User.create({
       username: "Nakkeeran S",
       email: adminEmail,
-      password: hashedPassword,
+      password: adminPassword, // ✅ Plain password - model hook will hash it
       role: "admin"
     });
 
-    const adminPlain = admin.get({ plain: true }) as UserData;
+    console.log(`✅ Admin created with ID: ${admin.id}`);
+    console.log(`Admin password hash: ${admin.password.substring(0, 20)}...`);
     
     return { 
       message: "Admin created successfully",
       admin: {
-        id: adminPlain.id,
-        username: adminPlain.username,
-        email: adminPlain.email,
-        role: adminPlain.role
+        id: admin.id,
+        username: admin.username,
+        email: admin.email,
+        role: admin.role
       }
     };
   } catch (error: any) {
+    console.error("❌ CREATE ADMIN SERVICE ERROR:", error.message);
+    console.error("Stack:", error.stack);
     throw new Error(`Failed to create admin: ${error.message}`);
+  }
+};
+
+// Debug function to check user
+export const checkUserExistsService = async (email: string) => {
+  try {
+    const user = await User.findOne({ 
+      where: { email: email.toLowerCase() } 
+    });
+    
+    return {
+      exists: !!user,
+      user: user ? {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+        passwordHash: user.password.substring(0, 20) + "..."
+      } : null
+    };
+  } catch (error: any) {
+    console.error("❌ CHECK USER SERVICE ERROR:", error.message);
+    throw new Error(`Check user failed: ${error.message}`);
   }
 };

@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { createAdminService, loginService, registerService } from "../services/authService";
+import { createAdminService, loginService, registerService, checkUserExistsService } from "../services/authService";
 import jwt from "jsonwebtoken";
 import { blacklistToken } from "../middlewares/authMiddlewares";
 import User from "../models/User";
@@ -8,10 +8,11 @@ import bcrypt from "bcryptjs";
 export const login = async (req: Request, res: Response) => {
   try {
     console.log("\n🔍 LOGIN ENDPOINT HIT ================");
-    console.log("Body:", req.body);
+    console.log("Request body:", req.body);
     
     const { email, password } = req.body;
     
+    // Validate input
     if (!email || !password) {
       console.log("❌ Missing email or password");
       return res.status(400).json({
@@ -20,20 +21,31 @@ export const login = async (req: Request, res: Response) => {
       });
     }
     
-    console.log("✅ Email and password received");
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      console.log("❌ Invalid input types");
+      return res.status(400).json({
+        success: false,
+        message: "Email and password must be strings"
+      });
+    }
     
+    console.log("✅ Valid input received");
+    console.log(`Email: ${email}, Password length: ${password.length}`);
+    
+    // Call login service
     const user = await loginService(email, password);
     
     if (!user) {
-      console.log("❌ Login service returned null");
+      console.log("❌ Invalid credentials");
       return res.status(401).json({
         success: false,
         message: "Invalid email or password"
       });
     }
 
-    console.log("✅ Login service successful, generating token");
-
+    console.log("✅ Login service successful");
+    
+    // Generate JWT token
     const token = jwt.sign(
       { 
         userId: user.id, 
@@ -41,15 +53,18 @@ export const login = async (req: Request, res: Response) => {
         role: user.role 
       },
       process.env.JWT_SECRET as string,
-      { expiresIn: "1d" }
+      { expiresIn: "7d" }
     );
 
     console.log("✅ LOGIN SUCCESSFUL ================");
-    console.log("User:", user.email);
-    console.log("Role:", user.role);
+    console.log("User ID:", user.id);
+    console.log("User Email:", user.email);
+    console.log("User Role:", user.role);
+    console.log("Token generated (length):", token.length);
 
     res.json({
       success: true,
+      message: "Login successful",
       token,
       user: {
         id: user.id,
@@ -61,10 +76,11 @@ export const login = async (req: Request, res: Response) => {
     
   } catch (error: any) {
     console.error("❌ LOGIN ERROR:", error.message);
+    console.error("Error stack:", error.stack);
     
     res.status(500).json({
       success: false,
-      message: "Login failed",
+      message: "Login failed. Please try again.",
       error: error.message
     });
   }
@@ -77,11 +93,20 @@ export const register = async (req: Request, res: Response) => {
     
     const { username, email, password, role = "user" } = req.body;
 
+    // Validate required fields
     if (!username || !email || !password) {
       console.log("❌ Missing fields");
       return res.status(400).json({
         success: false,
-        message: "All fields are required"
+        message: "Username, email and password are required"
+      });
+    }
+
+    // Validate types
+    if (typeof username !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: "All fields must be strings"
       });
     }
 
@@ -90,8 +115,10 @@ export const register = async (req: Request, res: Response) => {
     console.log("🔑 Password length:", password.length);
     console.log("🎭 Role:", role);
 
+    // Call register service
     const user = await registerService({ username, email, password, role });
 
+    // Generate JWT token
     const token = jwt.sign(
       { 
         userId: user.id, 
@@ -99,11 +126,11 @@ export const register = async (req: Request, res: Response) => {
         role: user.role 
       },
       process.env.JWT_SECRET as string,
-      { expiresIn: "1d" }
+      { expiresIn: "7d" }
     );
 
     console.log("✅ REGISTRATION SUCCESSFUL");
-    console.log("User created:", user.email);
+    console.log("User created with ID:", user.id);
 
     res.status(201).json({
       success: true,
@@ -119,10 +146,18 @@ export const register = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("❌ REGISTER ERROR:", error.message);
     
+    // Handle specific errors
     if (error.message.includes("already exists")) {
       return res.status(400).json({
         success: false,
         message: "User already exists with this email"
+      });
+    }
+    
+    if (error.message.includes("Password must be")) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
       });
     }
     
@@ -186,7 +221,111 @@ export const logout = (req: Request, res: Response) => {
   }
 };
 
-// Reset password endpoint for debugging
+// For debugging - check if user exists
+export const checkUser = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    
+    console.log("\n🔍 CHECK USER REQUEST");
+    console.log("Email:", email);
+    
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required"
+      });
+    }
+    
+    const result = await checkUserExistsService(email);
+    
+    console.log("✅ Check user result:", result);
+    
+    if (!result.exists) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+    
+    res.json({
+      success: true,
+      user: result.user
+    });
+    
+  } catch (error: any) {
+    console.error("❌ CHECK USER ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Verify user credentials
+export const verifyUser = async (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body;
+    
+    console.log("\n🔍 VERIFY USER REQUEST");
+    console.log("Email:", email);
+    
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required"
+      });
+    }
+    
+    const user = await User.findOne({ where: { email } });
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+    
+    console.log("✅ User found:", user.email);
+    console.log("Username:", user.username);
+    console.log("Role:", user.role);
+    console.log("Password hash:", user.password.substring(0, 20) + "...");
+    
+    // Verify password
+    const isMatch = await bcrypt.compare(password, user.password);
+    console.log("Password match:", isMatch);
+    
+    res.json({
+      success: true,
+      userExists: true,
+      passwordMatch: isMatch,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role
+      }
+    });
+    
+  } catch (error: any) {
+    console.error("❌ VERIFY USER ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Test endpoint
+export const testEndpoint = async (req: Request, res: Response) => {
+  console.log("✅ Test endpoint called");
+  res.json({
+    success: true,
+    message: "Auth routes are working",
+    timestamp: new Date().toISOString(),
+    userCount: await User.count()
+  });
+};
+
 export const resetPassword = async (req: Request, res: Response) => {
   try {
     const { email, newPassword } = req.body;
@@ -214,9 +353,8 @@ export const resetPassword = async (req: Request, res: Response) => {
     console.log("✅ User found:", user.email);
     console.log("Old hash:", user.password.substring(0, 30) + "...");
     
-    // Update password
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await user.update({ password: hashedPassword });
+    // Update password - model hook will hash it
+    await user.update({ password: newPassword });
     
     console.log("✅ Password updated");
     console.log("New hash:", user.password.substring(0, 30) + "...");
@@ -237,68 +375,6 @@ export const resetPassword = async (req: Request, res: Response) => {
       message: error.message
     });
   }
-};
-
-// Check user endpoint
-export const checkUser = async (req: Request, res: Response) => {
-  try {
-    const { email } = req.body;
-    
-    console.log("\n🔍 CHECK USER REQUEST");
-    console.log("Email:", email);
-    
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: "Email is required"
-      });
-    }
-    
-    const user = await User.findOne({ where: { email } });
-    
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found"
-      });
-    }
-    
-    console.log("✅ User found:", user.email);
-    console.log("Username:", user.username);
-    console.log("Role:", user.role);
-    console.log("Password hash:", user.password);
-    console.log("Hash type:", user.password.substring(0, 7));
-    console.log("Hash length:", user.password.length);
-    
-    res.json({
-      success: true,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        passwordHash: user.password,
-        hashType: user.password.substring(0, 7),
-        hashLength: user.password.length
-      }
-    });
-    
-  } catch (error: any) {
-    console.error("❌ CHECK USER ERROR:", error.message);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
-
-export const testEndpoint = async (req: Request, res: Response) => {
-  console.log("✅ Test endpoint called");
-  res.json({
-    success: true,
-    message: "Auth routes are working",
-    timestamp: new Date().toISOString()
-  });
 };
 
 // Test JSON parse function
