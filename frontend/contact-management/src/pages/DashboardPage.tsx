@@ -7,14 +7,13 @@ import {
   createContact,
   resetContacts,
   clearError,
-  addContactToState, // Import new action
 } from '../store/slices/contactSlice';
 import Header from '../components/common/Header';
 import ContactForm from '../components/contacts/ContactForm';
 import ContactList from '../components/contacts/ContactList';
 import Modal from '../components/ui/Modal';
 import { ContactFormData } from '../types/contact.types';
-import { FaPlus, FaAddressBook} from 'react-icons/fa';
+import { FaPlus, FaAddressBook } from 'react-icons/fa';
 
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -39,7 +38,6 @@ const DashboardPage: React.FC = () => {
     }
   }, [dispatch, page]);
 
-  // Fetch contacts on mount and page change
   useEffect(() => {
     if (!user) {
       navigate('/login');
@@ -58,22 +56,23 @@ const DashboardPage: React.FC = () => {
   const handleCreateContact = async (data: ContactFormData) => {
     try {
       setIsCreating(true);
-      const result = await dispatch(createContact(data)).unwrap();
+      await dispatch(createContact(data)).unwrap();
 
       setIsModalOpen(false);
       setIsCreating(false);
 
-      // Add contact to state immediately
-      dispatch(addContactToState(result.contact));
-      
-      toast.success('Contact created successfully!');
-      
+      toast.success('Contact created successfully!', {
+        icon: '✅',
+        duration: 3000,
+      });
+
       // If not on page 1, suggest going to page 1
       if (page !== 1) {
         toast('New contact added. Go to page 1 to see it.', {
           icon: '📄',
           duration: 4000,
         });
+        setPage(1);
       }
 
     } catch (error: any) {

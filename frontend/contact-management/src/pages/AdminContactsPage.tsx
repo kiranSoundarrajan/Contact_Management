@@ -9,7 +9,8 @@ import {
   deleteContact,
   startPageLoading,
   stopPageLoading,
-  syncContactsFromCache
+  syncContactsFromCache,
+  setPage
 } from '../store/slices/contactSlice';
 import Header from '../components/common/Header';
 import ContactTable from '../components/contacts/ContactTable';
@@ -32,25 +33,29 @@ const AdminContactsPage: React.FC = () => {
     total, 
     totalPages,
     syncTimestamp,
-    currentPage  // Get currentPage from state
+    currentPage
   } = useAppSelector((state) => state.contacts);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [page, setPage] = useState(1);
   const [isChangingPage, setIsChangingPage] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
+  // Use Redux currentPage as the source of truth
+  const page = currentPage;
+
   /* ---------------- SEARCH DEBOUNCE ---------------- */
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm);
-      setPage(1);
+      if (currentPage !== 1) {
+        dispatch(setPage(1));
+      }
     }, 500);
     return () => clearTimeout(timer);
-  }, [searchTerm]);
+  }, [searchTerm, dispatch, currentPage]);
 
   /* ---------------- FETCH CONTACTS ---------------- */
   useEffect(() => {
@@ -61,18 +66,16 @@ const AdminContactsPage: React.FC = () => {
     
     const loadContacts = async () => {
       try {
-        // Use getAllContacts for admin
         await dispatch(fetchAllContacts({ 
           page, 
-          limit: 15, // Add limit explicitly
-          search: debouncedSearch,
-          forceRefresh: page === 1 // Force refresh on first page
+          limit: 15,
+          search: debouncedSearch
         }));
       } catch (error: any) {
         console.error('Admin API failed:', error);
         
         // Fallback to user contacts API if admin API fails
-        if (error.message?.includes('Access denied') || error.message?.includes('403')) {
+        if (error.message?.includes('Access denied') || error.message?.includes('403') || error.payload?.includes('Access denied')) {
           toast.error('Admin API access issue. Loading user contacts instead...');
           await dispatch(fetchUserContacts({ 
             page, 
@@ -87,13 +90,6 @@ const AdminContactsPage: React.FC = () => {
     
     loadContacts();
   }, [dispatch, navigate, user, debouncedSearch, page]);
-
-  // Sync page with redux currentPage
-  useEffect(() => {
-    if (currentPage && currentPage !== page) {
-      setPage(currentPage);
-    }
-  }, [currentPage]);
 
   /* ---------------- SMOOTH PAGE CHANGE HANDLER ---------------- */
   const handlePageChange = useCallback(async (newPage: number) => {
@@ -111,22 +107,21 @@ const AdminContactsPage: React.FC = () => {
     setIsChangingPage(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     dispatch(startPageLoading());
+    dispatch(setPage(newPage));
     
     await new Promise(resolve => setTimeout(resolve, 100));
-    setPage(newPage);
     
     try {
       await dispatch(fetchAllContacts({ 
         page: newPage, 
         limit: 15,
-        search: debouncedSearch,
-        forceRefresh: false
+        search: debouncedSearch
       }));
     } catch (error: any) {
       console.error('Page change error:', error);
       
       // Fallback to user contacts API
-      if (error.message?.includes('Access denied') || error.message?.includes('403')) {
+      if (error.message?.includes('Access denied') || error.message?.includes('403') || error.payload?.includes('Access denied')) {
         await dispatch(fetchUserContacts({ 
           page: newPage, 
           limit: 15,
@@ -184,7 +179,7 @@ const AdminContactsPage: React.FC = () => {
       await dispatch(syncContactsFromCache());
       toast.success('Contacts synced successfully!');
     } catch (err: any) {
-      toast.error('Failed to sync contacts');
+      toast.error(err.payload || 'Failed to sync contacts');
     }
   }, [dispatch]);
 
@@ -206,15 +201,14 @@ const AdminContactsPage: React.FC = () => {
       setIsEditModalOpen(false);
       setSelectedContact(null);
       
-      // Refresh contacts after update - stay on current page
+      // Refresh contacts after update
       await dispatch(fetchAllContacts({ 
         page, 
         limit: 15,
-        search: debouncedSearch,
-        forceRefresh: true 
+        search: debouncedSearch
       }));
     } catch (err: any) {
-      toast.error(err.message || 'Update failed');
+      toast.error(err.payload || err.message || 'Update failed');
     }
   };
 
@@ -226,15 +220,14 @@ const AdminContactsPage: React.FC = () => {
       setIsDeleteModalOpen(false);
       setSelectedContact(null);
       
-      // Refresh contacts after delete - stay on current page
+      // Refresh contacts after delete
       await dispatch(fetchAllContacts({ 
         page, 
         limit: 15,
-        search: debouncedSearch,
-        forceRefresh: true 
+        search: debouncedSearch
       }));
     } catch (err: any) {
-      toast.error(err.message || 'Delete failed');
+      toast.error(err.payload || err.message || 'Delete failed');
     }
   };
 

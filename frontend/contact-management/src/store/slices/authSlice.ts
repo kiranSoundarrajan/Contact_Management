@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { authApi } from '../../api/authApi';
-import { AuthState,LoginCredentials, RegisterCredentials } from '../../types/auth.types';
+import { AuthState, LoginCredentials, RegisterCredentials } from '../../types/auth.types';
 
 const initialState: AuthState = {
   user: JSON.parse(localStorage.getItem('user') || 'null'),
@@ -15,6 +15,12 @@ export const login = createAsyncThunk(
   async (credentials: LoginCredentials, { rejectWithValue }) => {
     try {
       const response = await authApi.login(credentials);
+      
+      // 🚨 VERIFY TOKEN EXISTS
+      if (!response.token) {
+        throw new Error('No token received from server');
+      }
+      
       localStorage.setItem('token', response.token);
       localStorage.setItem('user', JSON.stringify(response.user));
       return response;
@@ -29,6 +35,12 @@ export const register = createAsyncThunk(
   async (userData: RegisterCredentials, { rejectWithValue }) => {
     try {
       const response = await authApi.register(userData);
+      
+      // 🚨 CRITICAL: Check if token exists
+      if (!response.token) {
+        throw new Error('Registration successful but no token received');
+      }
+      
       localStorage.setItem('token', response.token);
       localStorage.setItem('user', JSON.stringify(response.user));
       return response;
