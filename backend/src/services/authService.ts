@@ -8,6 +8,7 @@ interface SafeUserData {
   role: string;
 }
 
+// In authService.ts - Updated registerService
 export const registerService = async (data: any): Promise<SafeUserData> => {
   try {
     console.log("📝 REGISTER SERVICE START ================");
@@ -44,24 +45,29 @@ export const registerService = async (data: any): Promise<SafeUserData> => {
     }
 
     console.log(`✅ No duplicate found, creating user...`);
+    console.log(`Original password: "${password}" (${password.length} chars)`);
     
-    // MANUALLY HASH THE PASSWORD - IMPORTANT!
-    const hashedPassword = await bcrypt.hash(password, 10);
-    console.log(`✅ Password hashed (${hashedPassword.substring(0, 30)}...)`);
-
-    // Create user with already hashed password
+    // 🔥 IMPORTANT: Send PLAIN password to model hook
+    // The model hook will check and hash it if needed
     const user = await User.create({
       username: username.trim(),
       email: email.toLowerCase().trim(),
-      password: hashedPassword, // Already hashed
+      password: password, // PLAIN PASSWORD - hook will hash it
       role: role.toLowerCase()
     });
 
     console.log(`✅ User created in DB with ID: ${user.id}`);
+    console.log(`DB stored hash: ${user.password.substring(0, 30)}...`);
+    console.log(`Hash starts with $2: ${user.password.startsWith('$2')}`);
     
-    // Immediately verify the hash works
-    const passwordMatch = await bcrypt.compare(password, user.password);
-    console.log(`✅ Password verification: ${passwordMatch ? 'SUCCESS' : 'FAILED'}`);
+    // Verify the stored hash works
+    const dbMatch = await bcrypt.compare(password, user.password);
+    console.log(`DB verification: ${dbMatch ? '✅ PASS' : '❌ FAIL'}`);
+    
+    if (!dbMatch) {
+      console.log(`⚠️ WARNING: Password verification failed!`);
+      console.log(`This means the model hook didn't hash properly`);
+    }
 
     return {
       id: user.id,

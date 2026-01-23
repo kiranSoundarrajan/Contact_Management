@@ -503,3 +503,69 @@ export const checkPasswordHash = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+
+
+// In authController.ts - Add debug endpoint
+export const debugRegistration = async (req: Request, res: Response) => {
+  try {
+    console.log("\n🔧 DEBUG REGISTRATION ================");
+    console.log("Request body:", req.body);
+    
+    const { username, email, password } = req.body;
+    
+    if (!username || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields required"
+      });
+    }
+    
+    // Test bcrypt hash
+    const hash = await bcrypt.hash(password, 10);
+    console.log(`Test hash: ${hash.substring(0, 30)}...`);
+    
+    // Check if user exists
+    const existing = await User.findOne({ where: { email } });
+    console.log(`User exists: ${!!existing}`);
+    
+    // Try to create user
+    try {
+      const user = await User.create({
+        username,
+        email,
+        password, // Plain password - let hooks handle it
+        role: "user"
+      });
+      
+      console.log(`User created: ID ${user.id}`);
+      console.log(`Stored hash: ${user.password.substring(0, 30)}...`);
+      
+      // Try to login immediately
+      const loginMatch = await bcrypt.compare(password, user.password);
+      console.log(`Login test: ${loginMatch ? '✅' : '❌'}`);
+      
+      return res.json({
+        success: true,
+        message: "Debug complete",
+        userId: user.id,
+        hashMatch: loginMatch,
+        storedHash: user.password.substring(0, 30) + "..."
+      });
+      
+    } catch (error: any) {
+      console.error("Create error:", error.message);
+      return res.json({
+        success: false,
+        message: error.message
+      });
+    }
+    
+  } catch (error: any) {
+    console.error("Debug error:", error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
