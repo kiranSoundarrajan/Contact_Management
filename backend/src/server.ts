@@ -16,7 +16,7 @@ app.use(express.json());
 
 /* ==================== 2. CORS ==================== */
 app.use(cors({
-  origin: ["https://kiran-contact-management.netlify.app", "http://localhost:3000"],
+  origin: ["https://contact-management-kirans.netlify.app", "http://localhost:3000"],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
 }));
