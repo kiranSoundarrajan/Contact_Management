@@ -136,8 +136,11 @@ const contactSlice = createSlice({
       .addCase(fetchAdminContacts.rejected, (state, action) => { state.loading = false; state.error = action.payload as string; })
 
       /* ===== CREATE / UPDATE / DELETE ===== */
-      .addCase(createContact.fulfilled, (state) => { state.syncTimestamp = Date.now(); })
-      .addCase(updateContact.fulfilled, (state, action) => {
+      .addCase(createContact.fulfilled, (state, action) => {
+        state.contacts.unshift(action.payload.contact); // add new contact at the top
+        state.total += 1; // increment total contacts
+        state.syncTimestamp = Date.now(); // optional, for UI update
+      }).addCase(updateContact.fulfilled, (state, action) => {
         const idx = state.contacts.findIndex(c => c.id === action.payload.contact.id);
         if (idx !== -1) state.contacts[idx] = action.payload.contact;
       })
