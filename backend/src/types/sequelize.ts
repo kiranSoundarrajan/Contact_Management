@@ -38,7 +38,7 @@ export interface UserAttributes {
   username: string;
   email: string;
   password: string;
-  role: UserRole;      // Use enum for stricter typing
+  role: UserRole;      
   createdAt?: Date;
   updatedAt?: Date;
 }
